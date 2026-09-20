@@ -18,7 +18,8 @@ data class Score(
     val durationSeconds: Int = 0,
     val addedAt: Long = System.currentTimeMillis(),
     val lastPage: Int = 0,
-    val bookmarkedPages: Set<Int> = emptySet()
+    val bookmarkedPages: Set<Int> = emptySet(),
+    val displayMode: PageDisplayMode = PageDisplayMode.SINGLE
 ) {
     fun toJson() = JSONObject().apply {
         put("id", id); put("title", title); put("fileName", fileName)
@@ -27,6 +28,7 @@ data class Score(
         put("tempo", tempo); put("durationSeconds", durationSeconds)
         put("addedAt", addedAt); put("lastPage", lastPage)
         put("bookmarks", JSONArray(bookmarkedPages.toList()))
+        put("displayMode", displayMode.name)
     }
 
     companion object {
@@ -41,9 +43,17 @@ data class Score(
             lastPage = json.optInt("lastPage"),
             bookmarkedPages = json.optJSONArray("bookmarks")?.let { a ->
                 (0 until a.length()).map { a.getInt(it) }.toSet()
-            } ?: emptySet()
+            } ?: emptySet(),
+            displayMode = runCatching {
+                PageDisplayMode.valueOf(json.optString("displayMode", PageDisplayMode.SINGLE.name))
+            }.getOrDefault(PageDisplayMode.SINGLE)
         )
     }
+}
+
+enum class PageDisplayMode(val label: String) {
+    SINGLE("Single page"),
+    TWO_UP("Two pages")
 }
 
 data class Setlist(
