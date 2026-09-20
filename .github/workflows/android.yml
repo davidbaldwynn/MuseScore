@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -33,3 +33,13 @@ jobs:
           name: scoreleaf-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Publish APK prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "alpha-${GITHUB_RUN_NUMBER}" \
+            app/build/outputs/apk/debug/app-debug.apk#Scoreleaf-alpha.apk \
+            --title "Scoreleaf Android alpha ${GITHUB_RUN_NUMBER}" \
+            --notes "Automated alpha build. Unit tests and Android lint passed." \
+            --prerelease
