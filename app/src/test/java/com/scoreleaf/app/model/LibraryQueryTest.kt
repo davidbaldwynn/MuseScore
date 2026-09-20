@@ -30,4 +30,25 @@ class LibraryQueryTest {
         assertTrue(PageNavigation.isValid(2, 3))
         assertFalse(PageNavigation.isValid(3, 3))
     }
+
+    @Test fun readerPositionIsClampedToTheDocument() {
+        assertEquals(2, ReaderState.withPage(bach, 99, 3).lastPage)
+        assertEquals(0, ReaderState.withPage(bach, -4, 3).lastPage)
+        assertEquals(0, ReaderState.withPage(bach, 4, 0).lastPage)
+    }
+
+    @Test fun bookmarkToggleAddsThenRemovesWithoutLosingPosition() {
+        val added = ReaderState.toggleBookmark(bach, 3)
+        assertEquals(setOf(3), added.bookmarkedPages)
+        assertEquals(3, added.lastPage)
+
+        val removed = ReaderState.toggleBookmark(added, 3)
+        assertTrue(removed.bookmarkedPages.isEmpty())
+        assertEquals(3, removed.lastPage)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun negativeBookmarkPagesAreRejected() {
+        ReaderState.toggleBookmark(bach, -1)
+    }
 }
