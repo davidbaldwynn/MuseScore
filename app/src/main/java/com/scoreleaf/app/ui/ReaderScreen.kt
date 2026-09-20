@@ -186,7 +186,7 @@ private fun ReaderPanelContent(panel: ReaderPanel, score: Score, page: Int, page
 @Composable
 private fun InkLayer(strokes: List<InkStroke>, active: List<InkPoint>, enabled: Boolean, onPoints: (List<InkPoint>) -> Unit, onCommit: (List<InkPoint>) -> Unit) {
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
-    Canvas(Modifier.fillMaxSize().onSizeChanged { layerSize = it }.then(if (enabled) Modifier.pointerInput(layerSize) {
+    Canvas(Modifier.fillMaxSize().testTag("ink-layer").onSizeChanged { layerSize = it }.then(if (enabled) Modifier.pointerInput(layerSize) {
         var gesturePoints = emptyList<InkPoint>()
         detectDragGestures(onDragStart = { p ->
             gesturePoints = listOf(InkPoint(p.x / size.width, p.y / size.height)); onPoints(gesturePoints)
