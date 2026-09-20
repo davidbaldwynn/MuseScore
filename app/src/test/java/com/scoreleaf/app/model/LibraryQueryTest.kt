@@ -51,4 +51,19 @@ class LibraryQueryTest {
     fun negativeBookmarkPagesAreRejected() {
         ReaderState.toggleBookmark(bach, -1)
     }
+
+    @Test fun pageLayoutsRespectDocumentBounds() {
+        assertEquals(listOf(0), ReaderState.pagesFor(0, 3, PageDisplayMode.SINGLE))
+        assertEquals(listOf(0, 1), ReaderState.pagesFor(0, 3, PageDisplayMode.TWO_UP))
+        assertEquals(listOf(2), ReaderState.pagesFor(2, 3, PageDisplayMode.TWO_UP))
+        assertTrue(ReaderState.pagesFor(0, 0, PageDisplayMode.TWO_UP).isEmpty())
+    }
+
+    @Test fun twoUpNavigationMovesBySpreads() {
+        assertEquals(2, ReaderState.movePage(0, 1, 6, PageDisplayMode.TWO_UP))
+        assertEquals(4, ReaderState.movePage(4, 1, 6, PageDisplayMode.TWO_UP))
+        assertEquals(2, ReaderState.movePage(4, -1, 6, PageDisplayMode.TWO_UP))
+        assertEquals(2, ReaderState.movePage(1, 1, 6, PageDisplayMode.TWO_UP))
+        assertEquals(1, ReaderState.movePage(0, 1, 2, PageDisplayMode.SINGLE))
+    }
 }

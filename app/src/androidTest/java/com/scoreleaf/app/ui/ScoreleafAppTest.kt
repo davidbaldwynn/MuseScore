@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -60,6 +61,16 @@ class ScoreleafAppTest {
         launchApp()
 
         compose.onNodeWithText("Flow score").performClick()
+        compose.waitUntilAtLeastOneExists(hasText("1 / 2"), timeoutMillis = 15_000)
+        compose.onNodeWithContentDescription("Tools").performClick()
+        compose.onNodeWithText("Two pages").performClick()
+        compose.waitUntilAtLeastOneExists(hasText("1–2 / 2"), timeoutMillis = 15_000)
+        compose.waitUntilAtLeastOneExists(hasContentDescription("Page 1"), timeoutMillis = 15_000)
+        compose.waitUntilAtLeastOneExists(hasContentDescription("Page 2"), timeoutMillis = 15_000)
+        compose.onNodeWithContentDescription("Page 1").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Page 2").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Tools").performClick()
+        compose.onNodeWithText("Single page").performClick()
         compose.waitUntilAtLeastOneExists(hasText("1 / 2"), timeoutMillis = 15_000)
         compose.onNodeWithContentDescription("Next").performClick()
         compose.onNodeWithText("2 / 2").assertIsDisplayed()
