@@ -6,7 +6,6 @@ import android.net.Uri
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -45,10 +44,10 @@ class ScoreleafAppTest {
         launchApp()
 
         compose.onNodeWithText("Scoreleaf").assertIsDisplayed()
-        compose.onNodeWithText("All Scores").assertExists()
+        compose.onNodeWithText("All Scores").fetchSemanticsNode()
         compose.onNodeWithText("Bring your music with you").assertIsDisplayed()
         compose.onNodeWithContentDescription("Import PDF").assertIsEnabled()
-        compose.onNodeWithText("Import PDF").assertExists()
+        compose.onNodeWithText("Import PDF").fetchSemanticsNode()
     }
 
     @Test
