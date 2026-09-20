@@ -31,7 +31,13 @@ object ReaderState {
     ): Int {
         if (pageCount <= 0 || direction == 0) return current.coerceAtLeast(0)
         val step = if (mode == PageDisplayMode.TWO_UP) 2 else 1
-        return (current + direction.coerceIn(-1, 1) * step)
-            .coerceIn(0, pageCount - 1)
+        val normalized = if (mode == PageDisplayMode.TWO_UP) current - current.mod(2) else current
+        val maximumStart = if (mode == PageDisplayMode.TWO_UP) {
+            ((pageCount - 1) / 2) * 2
+        } else {
+            pageCount - 1
+        }
+        return (normalized + direction.coerceIn(-1, 1) * step)
+            .coerceIn(0, maximumStart)
     }
 }
