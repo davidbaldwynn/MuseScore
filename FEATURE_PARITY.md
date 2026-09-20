@@ -1,5 +1,16 @@
 # forScore-class Android parity plan
 
+## Verified status
+
+**Audit date:** 2026-09-20  
+**Reference:** forScore 15.2.1 and its official
+[user-guide table of contents](https://forscore.co/documentation/table-of-contents/).
+
+Scoreleaf is **not currently at feature or UI parity**. A row is only marked
+`Complete` after its behavior has automated coverage, a large-tablet UI check,
+and a physical-device acceptance run. Labels such as “UI shell” do not count as
+implemented functionality.
+
 Scoreleaf targets workflow and capability parity with current forScore while retaining its own name, visual assets, source, and platform-appropriate Android behavior.
 
 ## Product surface
@@ -21,6 +32,24 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 | Sync/backup | Local archive, WebDAV/Drive sync, conflicts, restore | Planned |
 | Android platform | Stylus pressure/hover, multi-window, intents, widgets/shortcuts | Intents only |
 
+### Additional audited gaps
+
+- Multiple-page, half-page, best-fit, zoomed and scrolling display modes
+- Named and ranged bookmarks, indexes, and CSV index import
+- Metadata editing, batch editing, filters, custom categories and sorting
+- Audio attachment, looping, recording, pitch/tempo controls and page-turn cues
+- PDF text/OCR search, scan capture, Reflow and accessibility reading
+- Annotation presets, pressure, highlighter, eraser, stamps, shapes, text,
+  selection/lasso, layers, redo and standard-format export
+- Page crop, rotate, duplicate, insert, extract, rearrange and merge
+- Configurable links/buttons, Bluetooth pedals, keyboard commands and MIDI
+- Backup/restore, cloud-provider sync, conflict handling and recovery
+- Multi-window, widgets/shortcuts, accessibility and large-library performance
+
+The visual target is workflow and information-architecture parity using an
+original Android design. It must not copy forScore's protected artwork,
+branding, or source code.
+
 ## Release sequence
 
 1. **Performance-reader alpha:** resilient PDF engine, adjacent-page bitmap cache, list/grid library, complete metadata, setlist playback, Bluetooth pedals, crop/two-up/half-page modes.
@@ -36,3 +65,18 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 - Stylus input must never trigger a page turn.
 - Setlist playback must continue across document boundaries without exposing library UI.
 - Imported PDFs and user annotations remain exportable in standard formats.
+
+## Evidence required for a parity claim
+
+1. Every row above has executable acceptance criteria and is `Complete`.
+2. Unit, repository, Compose UI, accessibility, rotation, process-recreation,
+   and Android emulator suites pass on every pull request.
+3. Golden screenshots pass at phone, 10-inch tablet, and TCL NXTPAPER 14-class
+   dimensions in portrait and landscape.
+4. A release candidate passes the physical TCL checklist in
+   [TEST_PLAN.md](TEST_PLAN.md), including stylus, Bluetooth pedal, long
+   performance, low-memory recovery, and offline use.
+5. No open blocker/critical defects and no known data-loss defects.
+
+Testing can establish confidence and document known behavior; it cannot prove
+that any non-trivial application contains zero bugs.
