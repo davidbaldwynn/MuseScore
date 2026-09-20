@@ -3,6 +3,7 @@ package com.scoreleaf.app.ui
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasText
@@ -21,6 +22,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalTestApi::class)
 class ScoreleafAppTest {
     private val context
         get() = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -109,7 +111,8 @@ class ScoreleafAppTest {
     }
 
     private fun createPdf(name: String, pages: Int) = context.cacheDir.resolve(name).also { file ->
-        PdfDocument().use { document ->
+        val document = PdfDocument()
+        try {
             repeat(pages) { index ->
                 val info = PdfDocument.PageInfo.Builder(600, 800, index + 1).create()
                 val page = document.startPage(info)
@@ -119,6 +122,8 @@ class ScoreleafAppTest {
                 document.finishPage(page)
             }
             file.outputStream().use(document::writeTo)
+        } finally {
+            document.close()
         }
     }
 }
