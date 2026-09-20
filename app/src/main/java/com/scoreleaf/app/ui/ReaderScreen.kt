@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.scoreleaf.app.data.ScoreRepository
@@ -79,7 +80,7 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
         } }
     ) { padding ->
         BoxWithConstraints(
-            Modifier.padding(padding).fillMaxSize().background(Color(0xFF24211E))
+            Modifier.padding(padding).fillMaxSize().testTag("score-reader").background(Color(0xFF24211E))
                 .pointerInput(page, inkMode) { if (!inkMode) detectTapGestures { tap ->
                     when { tap.x < size.width * .25f -> changePage(page - 1); tap.x > size.width * .75f -> changePage(page + 1); else -> controls = !controls }
                 } },
