@@ -39,6 +39,8 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
     var page by remember { mutableIntStateOf(score.lastPage) }
     var pageCount by remember { mutableIntStateOf(1) }
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var secondBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var displayMode by remember(score.id) { mutableStateOf(score.displayMode) }
     var renderError by remember { mutableStateOf<String?>(null) }
     var controls by remember { mutableStateOf(true) }
     var inkMode by remember { mutableStateOf(false) }
@@ -51,15 +53,31 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
         currentScore = ReaderState.withPage(currentScore, page, pageCount)
         repo.updateScore(currentScore)
     }
-    fun changePage(next: Int) { if (PageNavigation.isValid(next, pageCount)) { persistPosition(); page = next } }
+    fun movePage(direction: Int) {
+        val next = ReaderState.movePage(page, direction, pageCount, displayMode)
+        if (next != page) {
+            persistPosition()
+            page = next
+        }
+    }
+    fun selectDisplayMode(mode: PageDisplayMode) {
+        displayMode = mode
+        inkMode = false
+        currentScore = currentScore.copy(displayMode = mode, lastPage = page)
+        repo.updateScore(currentScore)
+    }
     BackHandler { persistPosition(); onBack() }
 
-    LaunchedEffect(page, file) {
+    LaunchedEffect(page, file, displayMode) {
         renderError = null
+        secondBitmap = null
         try {
             val rendered = renderPage(file, page)
             pageCount = rendered.second
             bitmap = rendered.first
+            if (displayMode == PageDisplayMode.TWO_UP && page + 1 < rendered.second) {
+                secondBitmap = renderPage(file, page + 1).first
+            }
         } catch (error: Exception) {
             bitmap = null
             renderError = error.message ?: "This PDF page could not be rendered."
@@ -70,34 +88,60 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
         topBar = { if (controls) ScoreControlBar(score.title,
             onLibrary = { persistPosition(); onBack() },
             onPanel = { activePanel = it },
-            onAnnotate = { inkMode = !inkMode }, inkMode = inkMode
+            onAnnotate = {
+                if (displayMode != PageDisplayMode.SINGLE) {
+                    selectDisplayMode(PageDisplayMode.SINGLE)
+                    inkMode = true
+                } else {
+                    inkMode = !inkMode
+                }
+            }, inkMode = inkMode
         ) },
         bottomBar = { if (controls) BottomAppBar {
-            IconButton(onClick = { changePage(page - 1) }, enabled = page > 0) { Icon(Icons.Default.ChevronLeft, "Previous") }
-            Text("${page + 1} / $pageCount", Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            IconButton(onClick = { movePage(-1) }, enabled = page > 0) { Icon(Icons.Default.ChevronLeft, "Previous") }
+            val visiblePages = ReaderState.pagesFor(page, pageCount, displayMode)
+            val pageLabel = if (visiblePages.size == 2) {
+                "${visiblePages.first() + 1}–${visiblePages.last() + 1} / $pageCount"
+            } else {
+                "${page + 1} / $pageCount"
+            }
+            Text(pageLabel, Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             if (inkMode) IconButton(onClick = { strokes = strokes.dropLast(1); repo.saveStrokes(score.id, page, strokes) }, enabled = strokes.isNotEmpty()) { Icon(Icons.Default.Undo, "Undo") }
-            IconButton(onClick = { changePage(page + 1) }, enabled = page + 1 < pageCount) { Icon(Icons.Default.ChevronRight, "Next") }
+            IconButton(onClick = { movePage(1) }, enabled = ReaderState.movePage(page, 1, pageCount, displayMode) != page) { Icon(Icons.Default.ChevronRight, "Next") }
         } }
     ) { padding ->
         BoxWithConstraints(
             Modifier.padding(padding).fillMaxSize().testTag("score-reader").background(Color(0xFF24211E))
                 .pointerInput(page, inkMode) { if (!inkMode) detectTapGestures { tap ->
-                    when { tap.x < size.width * .25f -> changePage(page - 1); tap.x > size.width * .75f -> changePage(page + 1); else -> controls = !controls }
+                    when { tap.x < size.width * .25f -> movePage(-1); tap.x > size.width * .75f -> movePage(1); else -> controls = !controls }
                 } },
             contentAlignment = Alignment.Center
         ) {
             bitmap?.let { bmp ->
-                val ratio = bmp.width.toFloat() / bmp.height
-                val boxRatio = constraints.maxWidth.toFloat() / constraints.maxHeight
-                val displayModifier = if (ratio > boxRatio) Modifier.fillMaxWidth().aspectRatio(ratio) else Modifier.fillMaxHeight().aspectRatio(ratio)
-                Box(displayModifier) {
-                    Image(bmp.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                    InkLayer(strokes, activePoints, inkMode,
-                        onPoints = { activePoints = it },
-                        onCommit = { points ->
-                            if (points.size > 1) strokes = strokes + InkStroke(Color(0xFFD52B1E).value.toLong(), 3f, points)
-                            activePoints = emptyList(); repo.saveStrokes(score.id, page, strokes)
-                        })
+                if (displayMode == PageDisplayMode.TWO_UP) {
+                    Row(
+                        Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(bmp.asImageBitmap(), "Page ${page + 1}", Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Fit)
+                        secondBitmap?.let { second ->
+                            Image(second.asImageBitmap(), "Page ${page + 2}", Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Fit)
+                        } ?: Spacer(Modifier.weight(1f))
+                    }
+                } else {
+                    val ratio = bmp.width.toFloat() / bmp.height
+                    val boxRatio = constraints.maxWidth.toFloat() / constraints.maxHeight
+                    val displayModifier = if (ratio > boxRatio) Modifier.fillMaxWidth().aspectRatio(ratio) else Modifier.fillMaxHeight().aspectRatio(ratio)
+                    Box(displayModifier) {
+                        Image(bmp.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        InkLayer(strokes, activePoints, inkMode,
+                            onPoints = { activePoints = it },
+                            onCommit = { points ->
+                                if (points.size > 1) strokes = strokes + InkStroke(Color(0xFFD52B1E).value.toLong(), 3f, points)
+                                activePoints = emptyList(); repo.saveStrokes(score.id, page, strokes)
+                            })
+                    }
                 }
             } ?: renderError?.let { message ->
                 Column(
@@ -115,10 +159,14 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
 
     activePanel?.let { panel ->
         ModalBottomSheet(onDismissRequest = { activePanel = null }) {
-            ReaderPanelContent(panel, currentScore, page, pageCount,
+            ReaderPanelContent(panel, currentScore, page, pageCount, displayMode,
                 onBookmark = {
                     currentScore = ReaderState.toggleBookmark(currentScore, page)
                     repo.updateScore(currentScore)
+                    activePanel = null
+                },
+                onDisplayMode = {
+                    selectDisplayMode(it)
                     activePanel = null
                 },
                 onClose = { activePanel = null })
@@ -146,7 +194,16 @@ private fun ScoreControlBar(title: String, onLibrary: () -> Unit, onPanel: (Read
 }
 
 @Composable
-private fun ReaderPanelContent(panel: ReaderPanel, score: Score, page: Int, pageCount: Int, onBookmark: () -> Unit, onClose: () -> Unit) {
+private fun ReaderPanelContent(
+    panel: ReaderPanel,
+    score: Score,
+    page: Int,
+    pageCount: Int,
+    displayMode: PageDisplayMode,
+    onBookmark: () -> Unit,
+    onDisplayMode: (PageDisplayMode) -> Unit,
+    onClose: () -> Unit
+) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
         Text(panel.name.lowercase().replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
@@ -159,7 +216,17 @@ private fun ReaderPanelContent(panel: ReaderPanel, score: Score, page: Int, page
             ReaderPanel.METRONOME -> MetronomePanel(score.tempo.takeIf { it > 0 } ?: 120)
             ReaderPanel.PITCH -> PitchPanel()
             ReaderPanel.TOOLS -> {
-                listOf("Display: single page", "Crop pages", "Rearrange", "Links & buttons", "Metadata", "Share / Export", "Settings").forEach { item ->
+                Text("Page layout", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PageDisplayMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = displayMode == mode,
+                            onClick = { onDisplayMode(mode) },
+                            label = { Text(mode.label) }
+                        )
+                    }
+                }
+                listOf("Crop pages", "Rearrange", "Links & buttons", "Metadata", "Share / Export", "Settings").forEach { item ->
                     ListItem(headlineContent = { Text(item) }, trailingContent = { Icon(Icons.Default.ChevronRight, null) })
                 }
             }
