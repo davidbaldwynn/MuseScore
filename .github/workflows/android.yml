@@ -79,6 +79,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           mv release/app-debug.apk release/Scoreleaf-alpha.apk
           gh release create "alpha-${GITHUB_RUN_NUMBER}" \
