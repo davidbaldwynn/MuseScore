@@ -36,6 +36,6 @@ class ScoreleafAppTest {
         compose.onNodeWithText("All Scores").assertIsDisplayed()
         compose.onNodeWithText("Bring your music with you").assertIsDisplayed()
         compose.onNodeWithContentDescription("Import PDF").assertIsEnabled()
-        compose.onNodeWithText("Import PDF").assertIsEnabled()
+        compose.onNodeWithText("Import PDF").assertIsDisplayed()
     }
 }
