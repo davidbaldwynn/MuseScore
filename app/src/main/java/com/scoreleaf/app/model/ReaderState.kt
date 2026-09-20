@@ -15,4 +15,23 @@ object ReaderState {
         }
         return score.copy(bookmarkedPages = pages, lastPage = page)
     }
+
+    fun pagesFor(startPage: Int, pageCount: Int, mode: PageDisplayMode): List<Int> {
+        if (pageCount <= 0) return emptyList()
+        val start = startPage.coerceIn(0, pageCount - 1)
+        val count = if (mode == PageDisplayMode.TWO_UP) 2 else 1
+        return (start until (start + count).coerceAtMost(pageCount)).toList()
+    }
+
+    fun movePage(
+        current: Int,
+        direction: Int,
+        pageCount: Int,
+        mode: PageDisplayMode
+    ): Int {
+        if (pageCount <= 0 || direction == 0) return current.coerceAtLeast(0)
+        val step = if (mode == PageDisplayMode.TWO_UP) 2 else 1
+        return (current + direction.coerceIn(-1, 1) * step)
+            .coerceIn(0, pageCount - 1)
+    }
 }
