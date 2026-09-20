@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.scoreleaf.app.data.ScoreRepository
@@ -34,9 +35,11 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
+    var currentScore by remember(score.id) { mutableStateOf(score) }
     var page by remember { mutableIntStateOf(score.lastPage) }
     var pageCount by remember { mutableIntStateOf(1) }
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var renderError by remember { mutableStateOf<String?>(null) }
     var controls by remember { mutableStateOf(true) }
     var inkMode by remember { mutableStateOf(false) }
     var strokes by remember(page) { mutableStateOf(repo.strokes(score.id, page)) }
@@ -44,14 +47,23 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
     var activePanel by remember { mutableStateOf<ReaderPanel?>(null) }
     val file = remember(score.id) { repo.scoreFile(score) }
 
-    fun persistPosition() = repo.updateScore(score.copy(lastPage = page))
+    fun persistPosition() {
+        currentScore = ReaderState.withPage(currentScore, page, pageCount)
+        repo.updateScore(currentScore)
+    }
     fun changePage(next: Int) { if (PageNavigation.isValid(next, pageCount)) { persistPosition(); page = next } }
     BackHandler { persistPosition(); onBack() }
 
     LaunchedEffect(page, file) {
-        val rendered = renderPage(file, page)
-        pageCount = rendered.second
-        bitmap = rendered.first
+        renderError = null
+        try {
+            val rendered = renderPage(file, page)
+            pageCount = rendered.second
+            bitmap = rendered.first
+        } catch (error: Exception) {
+            bitmap = null
+            renderError = error.message ?: "This PDF page could not be rendered."
+        }
     }
 
     Scaffold(
@@ -68,7 +80,7 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
         } }
     ) { padding ->
         BoxWithConstraints(
-            Modifier.padding(padding).fillMaxSize().background(Color(0xFF24211E))
+            Modifier.padding(padding).fillMaxSize().testTag("score-reader").background(Color(0xFF24211E))
                 .pointerInput(page, inkMode) { if (!inkMode) detectTapGestures { tap ->
                     when { tap.x < size.width * .25f -> changePage(page - 1); tap.x > size.width * .75f -> changePage(page + 1); else -> controls = !controls }
                 } },
@@ -87,16 +99,27 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                             activePoints = emptyList(); repo.saveStrokes(score.id, page, strokes)
                         })
                 }
+            } ?: renderError?.let { message ->
+                Column(
+                    Modifier.padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.BrokenImage, null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Unable to display this score", color = Color.White)
+                    Text(message, color = Color.LightGray, style = MaterialTheme.typography.bodySmall)
+                }
             } ?: CircularProgressIndicator()
         }
     }
 
     activePanel?.let { panel ->
         ModalBottomSheet(onDismissRequest = { activePanel = null }) {
-            ReaderPanelContent(panel, score, page, pageCount,
+            ReaderPanelContent(panel, currentScore, page, pageCount,
                 onBookmark = {
-                    val pages = if (page in score.bookmarkedPages) score.bookmarkedPages - page else score.bookmarkedPages + page
-                    repo.updateScore(score.copy(bookmarkedPages = pages)); activePanel = null
+                    currentScore = ReaderState.toggleBookmark(currentScore, page)
+                    repo.updateScore(currentScore)
+                    activePanel = null
                 },
                 onClose = { activePanel = null })
         }
@@ -163,7 +186,7 @@ private fun ReaderPanelContent(panel: ReaderPanel, score: Score, page: Int, page
 @Composable
 private fun InkLayer(strokes: List<InkStroke>, active: List<InkPoint>, enabled: Boolean, onPoints: (List<InkPoint>) -> Unit, onCommit: (List<InkPoint>) -> Unit) {
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
-    Canvas(Modifier.fillMaxSize().onSizeChanged { layerSize = it }.then(if (enabled) Modifier.pointerInput(layerSize) {
+    Canvas(Modifier.fillMaxSize().testTag("ink-layer").onSizeChanged { layerSize = it }.then(if (enabled) Modifier.pointerInput(layerSize) {
         var gesturePoints = emptyList<InkPoint>()
         detectDragGestures(onDragStart = { p ->
             gesturePoints = listOf(InkPoint(p.x / size.width, p.y / size.height)); onPoints(gesturePoints)
