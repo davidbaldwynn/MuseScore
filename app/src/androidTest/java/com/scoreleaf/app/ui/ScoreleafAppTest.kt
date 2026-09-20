@@ -61,6 +61,14 @@ class ScoreleafAppTest {
 
         compose.onNodeWithText("Flow score").performClick()
         compose.waitUntilAtLeastOneExists(hasText("1 / 2"), timeoutMillis = 15_000)
+        compose.onNodeWithContentDescription("Tools").performClick()
+        compose.onNodeWithText("Two pages").performClick()
+        compose.waitUntilAtLeastOneExists(hasText("1–2 / 2"), timeoutMillis = 15_000)
+        compose.onNodeWithContentDescription("Page 1").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Page 2").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Tools").performClick()
+        compose.onNodeWithText("Single page").performClick()
+        compose.waitUntilAtLeastOneExists(hasText("1 / 2"), timeoutMillis = 15_000)
         compose.onNodeWithContentDescription("Next").performClick()
         compose.onNodeWithText("2 / 2").assertIsDisplayed()
 
