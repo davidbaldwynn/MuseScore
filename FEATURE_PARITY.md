@@ -1,0 +1,38 @@
+# forScore-class Android parity plan
+
+Scoreleaf targets workflow and capability parity with current forScore while retaining its own name, visual assets, source, and platform-appropriate Android behavior.
+
+## Product surface
+
+| Area | Required behavior | v0.1 status |
+|---|---|---|
+| Reading | Disappearing controls, edge taps, page scrubber, adaptive prefetch | Partial |
+| Library | All scores, recents, composers, genres, tags, labels, list/grid, metadata sorting | Partial |
+| Setlists | Folders, drag ordering, placeholders, navigation across score boundaries | Partial |
+| Annotation | Pencil/highlighter/eraser, stamps, shapes, text, lasso, layers, undo/redo | Pencil + undo |
+| Bookmarks | Page flags, named bookmarks, ranges, indexed books, CSV index import | Page flags |
+| Layout | Crop, best fit, two-up, half-page turns, vertical scroll, Reflow | Planned |
+| Score editing | Rearrange, duplicate, rotate, insert, extract, merge | Planned |
+| Navigation | Links for repeats; configurable on-page action buttons | Planned |
+| Performance | Bluetooth pedals, keyboard shortcuts, MIDI in/out, remote page turns | Planned |
+| Audio | Attach tracks, looping, pitch/tempo changes, recorded page turns | Planned |
+| Utilities | Metronome, pitch pipe, tuner, piano, timer, practice log | UI shell |
+| Import/export | Files/cloud providers, scan, annotated PDF export, archives | PDF import |
+| Sync/backup | Local archive, WebDAV/Drive sync, conflicts, restore | Planned |
+| Android platform | Stylus pressure/hover, multi-window, intents, widgets/shortcuts | Intents only |
+
+## Release sequence
+
+1. **Performance-reader alpha:** resilient PDF engine, adjacent-page bitmap cache, list/grid library, complete metadata, setlist playback, Bluetooth pedals, crop/two-up/half-page modes.
+2. **Annotation beta:** vector layer model, pressure-aware ink, highlighter, eraser, selection, text, shapes, music stamps, named layers, flatten/export.
+3. **Score-workflow beta:** bookmarks and indexes, page rearrangement, links/buttons, audio attachments, metronome/pitch/tuner/piano, backup archive.
+4. **Parity release:** OCR/Reflow, Drive/WebDAV sync, MIDI, remote coordination, multi-window, automation shortcuts, accessibility and large-library performance testing.
+
+## Non-negotiable quality bars
+
+- A cached page turn must render within one display frame on reference tablets.
+- No network dependency during a performance.
+- Every mutation must be crash-safe and recoverable from an automatic local snapshot.
+- Stylus input must never trigger a page turn.
+- Setlist playback must continue across document boundaries without exposing library UI.
+- Imported PDFs and user annotations remain exportable in standard formats.
