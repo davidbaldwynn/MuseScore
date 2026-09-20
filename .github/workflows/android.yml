@@ -33,13 +33,56 @@ jobs:
           name: scoreleaf-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  instrumented-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Large-tablet Compose tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          ram-size: 4096M
+          script: |
+            adb shell wm size 2400x1600
+            adb shell wm density 240
+            gradle --no-daemon connectedDebugAndroidTest
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, instrumented-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: scoreleaf-debug-apk
+          path: release
       - name: Publish APK prerelease
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          mv release/app-debug.apk release/Scoreleaf-alpha.apk
           gh release create "alpha-${GITHUB_RUN_NUMBER}" \
-            app/build/outputs/apk/debug/app-debug.apk#Scoreleaf-alpha.apk \
+            release/Scoreleaf-alpha.apk \
             --title "Scoreleaf Android alpha ${GITHUB_RUN_NUMBER}" \
-            --notes "Automated alpha build. Unit tests and Android lint passed." \
+            --notes "Automated alpha build. Unit tests, Android lint, and large-tablet UI tests passed." \
             --prerelease
