@@ -63,6 +63,7 @@ class LibraryQueryTest {
         assertEquals(2, ReaderState.movePage(0, 1, 6, PageDisplayMode.TWO_UP))
         assertEquals(4, ReaderState.movePage(4, 1, 6, PageDisplayMode.TWO_UP))
         assertEquals(2, ReaderState.movePage(4, -1, 6, PageDisplayMode.TWO_UP))
+        assertEquals(2, ReaderState.movePage(1, 1, 6, PageDisplayMode.TWO_UP))
         assertEquals(1, ReaderState.movePage(0, 1, 2, PageDisplayMode.SINGLE))
     }
 }
