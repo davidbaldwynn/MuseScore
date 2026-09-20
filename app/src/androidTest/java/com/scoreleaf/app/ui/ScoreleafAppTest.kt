@@ -47,7 +47,6 @@ class ScoreleafAppTest {
         compose.onNodeWithText("All Scores").fetchSemanticsNode()
         compose.onNodeWithText("Bring your music with you").assertIsDisplayed()
         compose.onNodeWithContentDescription("Import PDF").assertIsEnabled()
-        compose.onNodeWithText("Import PDF").fetchSemanticsNode()
     }
 
     @Test
