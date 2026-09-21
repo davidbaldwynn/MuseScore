@@ -22,7 +22,7 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 | Setlists | Folders, drag ordering, placeholders, navigation across score boundaries | Partial |
 | Annotation | Pencil/highlighter/eraser, stamps, shapes, text, lasso, layers, undo/redo | Pencil + undo |
 | Bookmarks | Page flags, named bookmarks, ranges, indexed books, CSV index import | Page flags |
-| Layout | Crop, best fit, two-up, half-page turns, vertical scroll, Reflow | Planned |
+| Layout | Crop, best fit, two-up, half-page turns, vertical scroll, Reflow | Partial: fit modes, two-up, half-page, vertical scroll |
 | Score editing | Rearrange, duplicate, rotate, insert, extract, merge | Planned |
 | Navigation | Links for repeats; configurable on-page action buttons | Planned |
 | Performance | Bluetooth pedals, keyboard shortcuts, MIDI in/out, remote page turns | Planned |
@@ -34,7 +34,7 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 
 ### Additional audited gaps
 
-- Multiple-page, half-page, best-fit, zoomed and scrolling display modes
+- Zoomed display, page crop and Reflow
 - Named and ranged bookmarks, indexes, and CSV index import
 - Metadata editing, batch editing, filters, custom categories and sorting
 - Audio attachment, looping, recording, pitch/tempo controls and page-turn cues
