@@ -7,6 +7,9 @@ Scoreleaf is an original, offline-first Android implementation targeting forScor
 - Import PDFs from Files, Drive, email, or any Android document provider
 - Full-screen, tablet-friendly PDF reader
 - Tap page edges for fast page turning; tap the center to hide controls
+- Single-page, two-page, half-page-turn, and vertical-scrolling layouts
+- Fit-page, fit-width, and fit-height settings saved per score
+- Bounded page cache with adjacent-page prefetch
 - Freehand annotations stored in normalized coordinates
 - Undo annotations per page
 - Bookmarks and automatic return to the last-read page
@@ -15,11 +18,26 @@ Scoreleaf is an original, offline-first Android implementation targeting forScor
 - Open PDFs shared into the app
 - Offline-only storage; no account and no analytics
 
-## Build and test
+## Run
 
-Every push runs unit tests, Android lint, and assembles a sideloadable debug APK. The workflow uses JDK 17, Gradle 8.9, Android Gradle Plugin 8.7.3, and Android SDK 35.
+1. Open this directory in Android Studio Ladybug or newer.
+2. Let Android Studio install Android SDK 35 and sync Gradle.
+3. Run the `app` configuration on an Android 8.0+ device or emulator.
 
-For a local build, open the repository in Android Studio Ladybug or newer and run the `app` configuration on Android 8.0 or newer.
+## Produce a release
+
+Create a signing key in Android Studio under **Build → Generate Signed Bundle / APK**, select **Android App Bundle**, and build the `release` variant. Upload the resulting `.aab` to a closed Google Play testing track before production.
+
+Before public release, change `applicationId` to a domain you control, add a privacy-policy URL, app icon/screenshots, crash reporting consent if desired, automated device tests, and Play Store data-safety answers. Because v0.1 stores data locally, its baseline data-safety declaration is “no data collected or shared.” Validate that statement again if telemetry or sync is added.
+
+## Next parity milestones
+
+- Bluetooth pedal and MIDI actions
+- Crop/Reflow margins and zoom controls
+- Annotation colors, highlighter, eraser, shapes, and text
+- Export annotated PDFs
+- Backup/restore archive and optional WebDAV/Drive sync
+- Metadata editing, tags, composers, and setlist reordering
 
 The full parity scope and release gates are tracked in [FEATURE_PARITY.md](FEATURE_PARITY.md).
 
