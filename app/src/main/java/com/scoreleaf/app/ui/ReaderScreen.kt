@@ -362,7 +362,8 @@ private fun VerticalScrollReader(
     ) {
         items(pageCount) { index ->
             val rendered by produceState<Bitmap?>(null, file, index) {
-                value = runCatching { renderPage(file, index, cache).first }.getOrNull()
+                val result = runCatching { renderPage(file, index, cache).first }
+                value = result.getOrNull()
             }
             Box(Modifier.fillParentMaxWidth().aspectRatio(0.75f), contentAlignment = Alignment.Center) {
                 rendered?.let {
