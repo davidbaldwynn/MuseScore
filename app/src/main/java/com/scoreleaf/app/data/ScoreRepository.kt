@@ -42,8 +42,23 @@ class ScoreRepository(private val context: Context) {
     }
 
     fun addToSetlist(setlistId: String, scoreId: String) = saveSetlists(setlists().map {
-        if (it.id == setlistId && scoreId !in it.scoreIds) it.copy(scoreIds = it.scoreIds + scoreId) else it
+        if (it.id == setlistId) it.copy(scoreIds = SetlistEditor.add(it.scoreIds, scoreId)) else it
     })
+
+    fun removeFromSetlist(setlistId: String, scoreId: String) = saveSetlists(setlists().map {
+        if (it.id == setlistId) it.copy(scoreIds = SetlistEditor.remove(it.scoreIds, scoreId)) else it
+    })
+
+    fun moveInSetlist(setlistId: String, index: Int, direction: Int) = saveSetlists(setlists().map {
+        if (it.id == setlistId) it.copy(scoreIds = SetlistEditor.move(it.scoreIds, index, direction)) else it
+    })
+
+    fun renameSetlist(setlistId: String, name: String) {
+        val clean = name.trim()
+        if (clean.isNotBlank()) saveSetlists(setlists().map { if (it.id == setlistId) it.copy(name = clean) else it })
+    }
+
+    fun deleteSetlist(setlistId: String) = saveSetlists(setlists().filterNot { it.id == setlistId })
 
     fun strokes(scoreId: String, page: Int): List<InkStroke> {
         val root = inkRoot(scoreId)
