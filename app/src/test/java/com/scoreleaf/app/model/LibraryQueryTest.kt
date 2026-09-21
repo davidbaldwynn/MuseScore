@@ -117,4 +117,46 @@ class LibraryQueryTest {
         assertEquals(PageFitMode.PAGE, restored.fitMode)
         assertEquals(PageHalf.TOP, restored.lastHalf)
     }
+
+    @Test fun metadataInputIsNormalizedBeforeSaving() {
+        val updated = ScoreMetadata.apply(
+            bach,
+            title = "  Suite No. 1  ",
+            composer = "  J. S. Bach ",
+            genre = " Baroque ",
+            tags = " cello, Solo, cello,  ",
+            key = " G major ",
+            tempo = " 96 ",
+            durationMinutes = "4",
+            rating = 5,
+            difficulty = 3
+        )
+
+        assertEquals("Suite No. 1", updated.title)
+        assertEquals("J. S. Bach", updated.composer)
+        assertEquals(setOf("cello", "Solo"), updated.tags)
+        assertEquals(96, updated.tempo)
+        assertEquals(240, updated.durationSeconds)
+        assertEquals(5, updated.rating)
+        assertEquals(3, updated.difficulty)
+    }
+
+    @Test fun invalidMetadataNumbersUseSafeDefaults() {
+        val updated = ScoreMetadata.apply(
+            bach, "Cello Suite", "Bach", "Baroque", "cello", "G", "fast", "-2", 9, -4
+        )
+
+        assertEquals(0, updated.tempo)
+        assertEquals(0, updated.durationSeconds)
+        assertEquals(5, updated.rating)
+        assertEquals(0, updated.difficulty)
+    }
+
+    @Test fun setlistEditingDeduplicatesMovesAndRemovesScores() {
+        val added = SetlistEditor.add(listOf("a", "b"), "a")
+        assertEquals(listOf("a", "b"), added)
+        assertEquals(listOf("b", "a", "c"), SetlistEditor.move(listOf("a", "b", "c"), 0, 1))
+        assertEquals(listOf("a", "c"), SetlistEditor.remove(listOf("a", "b", "c"), "b"))
+        assertEquals(listOf("a", "b"), SetlistEditor.move(listOf("a", "b"), 0, -1))
+    }
 }
