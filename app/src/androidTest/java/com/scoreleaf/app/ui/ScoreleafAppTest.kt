@@ -102,11 +102,25 @@ class ScoreleafAppTest {
         compose.onNodeWithContentDescription("Undo").assertIsEnabled()
 
         compose.onNodeWithContentDescription("Library").performClick()
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithText("Edit details").performClick()
+        compose.onNodeWithText("Composer").performTextReplacement("Ada Composer")
+        compose.onNodeWithText("Tags (comma separated)").performTextReplacement("solo, recital")
+        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithContentDescription("Library search").performTextReplacement("Ada Composer")
+        compose.onNodeWithText("Flow score").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Library search").performTextReplacement("")
         compose.onNodeWithContentDescription("Setlists").performClick()
         compose.onNodeWithText("New").performClick()
         compose.onNodeWithText("Name").performTextReplacement("Rehearsal")
         compose.onNodeWithText("Create").performClick()
         compose.onNodeWithText("Rehearsal").assertIsDisplayed()
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithText("Add to Rehearsal").performClick()
+        compose.onNodeWithText("Rehearsal").performClick()
+        compose.onNodeWithContentDescription("Open Flow score").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open Flow score").performClick()
+        compose.waitUntilAtLeastOneExists(hasText("2 / 2"), timeoutMillis = 15_000)
     }
 
     @Test
