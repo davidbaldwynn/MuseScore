@@ -20,7 +20,7 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 | Reading | Disappearing controls, edge taps, page scrubber, adaptive prefetch | Partial |
 | Library | All scores, recents, composers, genres, tags, labels, list/grid, metadata sorting | Partial: metadata editing/search, category sorts, list/grid |
 | Setlists | Folders, drag ordering, placeholders, navigation across score boundaries | Partial: membership, ordering, removal, score launch |
-| Annotation | Pencil/highlighter/eraser, stamps, shapes, text, lasso, layers, undo/redo | Pencil + undo |
+| Annotation | Pencil/highlighter/eraser, stamps, shapes, text, lasso, layers, undo/redo | Partial: pen, highlighter, vector eraser, undo/redo, persisted layer IDs |
 | Bookmarks | Page flags, named bookmarks, ranges, indexed books, CSV index import | Page flags |
 | Layout | Crop, best fit, two-up, half-page turns, vertical scroll, Reflow | Partial: fit modes, two-up, half-page, vertical scroll |
 | Score editing | Rearrange, duplicate, rotate, insert, extract, merge | Planned |
