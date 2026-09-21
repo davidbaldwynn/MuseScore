@@ -52,7 +52,10 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
     var renderError by remember { mutableStateOf<String?>(null) }
     var controls by remember { mutableStateOf(true) }
     var inkMode by remember { mutableStateOf(false) }
-    var strokes by remember(page) { mutableStateOf(repo.strokes(score.id, page)) }
+    var annotationHistory by remember(page) {
+        mutableStateOf(AnnotationHistory(repo.strokes(score.id, page)))
+    }
+    var annotationTool by remember { mutableStateOf(AnnotationTool.PEN) }
     var activePoints by remember { mutableStateOf<List<InkPoint>>(emptyList()) }
     var activePanel by remember { mutableStateOf<ReaderPanel?>(null) }
     val file = remember(score.id) { repo.scoreFile(score) }
@@ -128,7 +131,25 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                 else -> "${page + 1} / $pageCount"
             }
             Text(pageLabel, Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            if (inkMode) IconButton(onClick = { strokes = strokes.dropLast(1); repo.saveStrokes(score.id, page, strokes) }, enabled = strokes.isNotEmpty()) { Icon(Icons.Default.Undo, "Undo") }
+            if (inkMode) {
+                IconButton(onClick = { annotationTool = AnnotationTool.PEN }) {
+                    Icon(Icons.Default.Draw, "Pen", tint = if (annotationTool == AnnotationTool.PEN) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                }
+                IconButton(onClick = { annotationTool = AnnotationTool.HIGHLIGHTER }) {
+                    Icon(Icons.Default.BorderColor, "Highlighter", tint = if (annotationTool == AnnotationTool.HIGHLIGHTER) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                }
+                IconButton(onClick = { annotationTool = AnnotationTool.ERASER }) {
+                    Icon(Icons.Default.AutoFixOff, "Eraser", tint = if (annotationTool == AnnotationTool.ERASER) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                }
+                IconButton(onClick = {
+                    annotationHistory = AnnotationEditor.undo(annotationHistory)
+                    repo.saveStrokes(score.id, page, annotationHistory.strokes)
+                }, enabled = annotationHistory.strokes.isNotEmpty()) { Icon(Icons.Default.Undo, "Undo") }
+                IconButton(onClick = {
+                    annotationHistory = AnnotationEditor.redo(annotationHistory)
+                    repo.saveStrokes(score.id, page, annotationHistory.strokes)
+                }, enabled = annotationHistory.redo.isNotEmpty()) { Icon(Icons.Default.Redo, "Redo") }
+            }
             IconButton(
                 onClick = { movePage(1) },
                 enabled = ReaderState.move(ReaderLocation(page, half), 1, pageCount, displayMode) != ReaderLocation(page, half)
@@ -166,11 +187,25 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                     val displayModifier = if (ratio > boxRatio) Modifier.fillMaxWidth().aspectRatio(ratio) else Modifier.fillMaxHeight().aspectRatio(ratio)
                     Box(displayModifier) {
                         Image(bmp.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = fitMode.contentScale())
-                        InkLayer(strokes, activePoints, inkMode,
+                        InkLayer(annotationHistory.strokes, activePoints, inkMode, annotationTool,
                             onPoints = { activePoints = it },
                             onCommit = { points ->
-                                if (points.size > 1) strokes = strokes + InkStroke(Color(0xFFD52B1E).value.toLong(), 3f, points)
-                                activePoints = emptyList(); repo.saveStrokes(score.id, page, strokes)
+                                annotationHistory = when {
+                                    annotationTool == AnnotationTool.ERASER && points.isNotEmpty() ->
+                                        AnnotationEditor.eraseNearest(annotationHistory, points.last(), .04f)
+                                    points.size > 1 -> AnnotationEditor.add(
+                                        annotationHistory,
+                                        InkStroke(
+                                            color = if (annotationTool == AnnotationTool.HIGHLIGHTER) Color(0x66FFD54F).value.toLong() else Color(0xFFD52B1E).value.toLong(),
+                                            width = if (annotationTool == AnnotationTool.HIGHLIGHTER) 18f else 3f,
+                                            points = points,
+                                            tool = annotationTool
+                                        )
+                                    )
+                                    else -> annotationHistory
+                                }
+                                activePoints = emptyList()
+                                repo.saveStrokes(score.id, page, annotationHistory.strokes)
                             })
                     }
                 }
@@ -299,7 +334,14 @@ private fun ReaderPanelContent(
 }
 
 @Composable
-private fun InkLayer(strokes: List<InkStroke>, active: List<InkPoint>, enabled: Boolean, onPoints: (List<InkPoint>) -> Unit, onCommit: (List<InkPoint>) -> Unit) {
+private fun InkLayer(
+    strokes: List<InkStroke>,
+    active: List<InkPoint>,
+    enabled: Boolean,
+    tool: AnnotationTool,
+    onPoints: (List<InkPoint>) -> Unit,
+    onCommit: (List<InkPoint>) -> Unit
+) {
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
     Canvas(Modifier.fillMaxSize().testTag("ink-layer").onSizeChanged { layerSize = it }.then(if (enabled) Modifier.pointerInput(layerSize) {
         var gesturePoints = emptyList<InkPoint>()
@@ -315,7 +357,13 @@ private fun InkLayer(strokes: List<InkStroke>, active: List<InkPoint>, enabled: 
             points.zipWithNext().forEach { (a, b) -> drawLine(color, Offset(a.x * size.width, a.y * size.height), Offset(b.x * size.width, b.y * size.height), width, cap = StrokeCap.Round) }
         }
         strokes.forEach { draw(it.points, Color(it.color.toULong()), it.width) }
-        draw(active, Color(0xFFD52B1E), 3f)
+        if (tool != AnnotationTool.ERASER) {
+            draw(
+                active,
+                if (tool == AnnotationTool.HIGHLIGHTER) Color(0x66FFD54F) else Color(0xFFD52B1E),
+                if (tool == AnnotationTool.HIGHLIGHTER) 18f else 3f
+            )
+        }
     }
 }
 
