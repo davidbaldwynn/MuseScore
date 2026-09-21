@@ -1,7 +1,12 @@
 package com.scoreleaf.app.data
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import com.scoreleaf.app.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -59,6 +64,52 @@ class ScoreRepository(private val context: Context) {
     }
 
     fun deleteSetlist(setlistId: String) = saveSetlists(setlists().filterNot { it.id == setlistId })
+
+    suspend fun exportAnnotatedPdf(score: Score): File = withContext(Dispatchers.IO) {
+        val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+        val safeName = score.title.replace(Regex("[^A-Za-z0-9._ -]"), "_").ifBlank { "Score" }
+        val output = File(exportDir, "$safeName-annotated.pdf")
+        val descriptor = ParcelFileDescriptor.open(scoreFile(score), ParcelFileDescriptor.MODE_READ_ONLY)
+        val document = PdfDocument()
+        try {
+            PdfRenderer(descriptor).use { renderer ->
+                repeat(renderer.pageCount) { index ->
+                    renderer.openPage(index).use { sourcePage ->
+                        val bitmap = Bitmap.createBitmap(sourcePage.width, sourcePage.height, Bitmap.Config.ARGB_8888)
+                        bitmap.eraseColor(android.graphics.Color.WHITE)
+                        sourcePage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                        val pageInfo = PdfDocument.PageInfo.Builder(sourcePage.width, sourcePage.height, index + 1).create()
+                        val outputPage = document.startPage(pageInfo)
+                        outputPage.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                        strokes(score.id, index).forEach { stroke ->
+                            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                color = stroke.color.toInt()
+                                strokeWidth = stroke.width
+                                strokeCap = Paint.Cap.ROUND
+                                style = Paint.Style.STROKE
+                            }
+                            stroke.points.zipWithNext().forEach { (start, end) ->
+                                outputPage.canvas.drawLine(
+                                    start.x * sourcePage.width,
+                                    start.y * sourcePage.height,
+                                    end.x * sourcePage.width,
+                                    end.y * sourcePage.height,
+                                    paint
+                                )
+                            }
+                        }
+                        document.finishPage(outputPage)
+                        bitmap.recycle()
+                    }
+                }
+            }
+            output.outputStream().use(document::writeTo)
+            output
+        } finally {
+            document.close()
+            descriptor.close()
+        }
+    }
 
     fun strokes(scoreId: String, page: Int): List<InkStroke> {
         val root = inkRoot(scoreId)
