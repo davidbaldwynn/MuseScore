@@ -1,8 +1,11 @@
 package com.scoreleaf.app.ui
 
 import android.graphics.Paint
+import android.graphics.Color
 import android.graphics.pdf.PdfDocument
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -22,6 +25,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class ScoreleafAppTest {
@@ -148,6 +153,43 @@ class ScoreleafAppTest {
             hasText("Unable to display this score"),
             timeoutMillis = 15_000
         )
+    }
+
+    @Test
+    fun annotatedExportIsAValidPdfWithFlattenedInk() = runBlocking {
+        val repo = ScoreRepository(context)
+        val score = repo.importPdf(Uri.fromFile(createPdf("export.pdf", 2)), "Export score.pdf")
+        repo.saveStrokes(
+            score.id,
+            0,
+            listOf(
+                com.scoreleaf.app.model.InkStroke(
+                    color = Color.RED.toLong(),
+                    width = 12f,
+                    points = listOf(
+                        com.scoreleaf.app.model.InkPoint(.1f, .5f),
+                        com.scoreleaf.app.model.InkPoint(.9f, .5f)
+                    )
+                )
+            )
+        )
+
+        val exported = repo.exportAnnotatedPdf(score)
+        assertTrue(exported.exists() && exported.length() > 0)
+        val descriptor = ParcelFileDescriptor.open(exported, ParcelFileDescriptor.MODE_READ_ONLY)
+        PdfRenderer(descriptor).use { renderer ->
+            assertEquals(2, renderer.pageCount)
+            renderer.openPage(0).use { page ->
+                val bitmap = android.graphics.Bitmap.createBitmap(600, 800, android.graphics.Bitmap.Config.ARGB_8888)
+                bitmap.eraseColor(Color.WHITE)
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                val coloredPixels = (260..540 step 20).count { y ->
+                    (60..540 step 20).any { x -> Color.red(bitmap.getPixel(x, y)) > 180 && Color.green(bitmap.getPixel(x, y)) < 100 }
+                }
+                assertTrue("Expected flattened red annotation pixels", coloredPixels > 0)
+            }
+        }
+        descriptor.close()
     }
 
     private fun launchApp() {
