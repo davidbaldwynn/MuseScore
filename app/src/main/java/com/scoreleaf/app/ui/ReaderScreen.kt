@@ -2,11 +2,13 @@ package com.scoreleaf.app.ui
 
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
+import android.content.Intent
 import android.os.ParcelFileDescriptor
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -30,17 +32,22 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.scoreleaf.app.data.ScoreRepository
 import com.scoreleaf.app.model.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var currentScore by remember(score.id) { mutableStateOf(score) }
     var page by remember { mutableIntStateOf(score.lastPage) }
     var pageCount by remember { mutableIntStateOf(1) }
@@ -239,6 +246,19 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                     selectFitMode(it)
                     activePanel = null
                 },
+                onExport = {
+                    activePanel = null
+                    scope.launch {
+                        val exported = repo.exportAnnotatedPdf(currentScore)
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", exported)
+                        val share = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/pdf"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(share, "Export annotated PDF"))
+                    }
+                },
                 onClose = { activePanel = null })
         }
     }
@@ -274,6 +294,7 @@ private fun ReaderPanelContent(
     onBookmark: () -> Unit,
     onDisplayMode: (PageDisplayMode) -> Unit,
     onFitMode: (PageFitMode) -> Unit,
+    onExport: () -> Unit,
     onClose: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
@@ -309,7 +330,13 @@ private fun ReaderPanelContent(
                         )
                     }
                 }
-                listOf("Crop pages", "Rearrange", "Links & buttons", "Metadata", "Share / Export", "Settings").forEach { item ->
+                ListItem(
+                    headlineContent = { Text("Export annotated PDF") },
+                    leadingContent = { Icon(Icons.Default.Share, null) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                    modifier = Modifier.clickable(onClick = onExport)
+                )
+                listOf("Crop pages", "Rearrange", "Links & buttons", "Metadata", "Settings").forEach { item ->
                     ListItem(headlineContent = { Text(item) }, trailingContent = { Icon(Icons.Default.ChevronRight, null) })
                 }
             }
