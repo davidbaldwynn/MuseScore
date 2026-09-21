@@ -118,7 +118,7 @@ class ScoreleafAppTest {
         compose.onNodeWithContentDescription("More").performClick()
         compose.onNodeWithText("Add to Rehearsal").performClick()
         compose.onNodeWithText("Rehearsal").performClick()
-        compose.onNodeWithText("Flow score").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open Flow score").assertIsDisplayed()
         compose.onNodeWithContentDescription("Open Flow score").performClick()
         compose.waitUntilAtLeastOneExists(hasText("2 / 2"), timeoutMillis = 15_000)
     }
