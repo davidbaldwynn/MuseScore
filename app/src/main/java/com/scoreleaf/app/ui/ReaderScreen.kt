@@ -361,9 +361,11 @@ private fun VerticalScrollReader(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(pageCount) { index ->
-            val rendered by produceState<Bitmap?>(null, file, index) {
-                val result = runCatching { renderPage(file, index, cache).first }
-                value = result.getOrNull()
+            var rendered by remember(file, index) { mutableStateOf(cache[index]) }
+            LaunchedEffect(file, index) {
+                if (rendered == null) {
+                    rendered = runCatching { renderPage(file, index, cache).first }.getOrNull()
+                }
             }
             Box(Modifier.fillParentMaxWidth().aspectRatio(0.75f), contentAlignment = Alignment.Center) {
                 rendered?.let {
