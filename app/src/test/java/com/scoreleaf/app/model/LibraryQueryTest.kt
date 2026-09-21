@@ -66,4 +66,55 @@ class LibraryQueryTest {
         assertEquals(2, ReaderState.movePage(1, 1, 6, PageDisplayMode.TWO_UP))
         assertEquals(1, ReaderState.movePage(0, 1, 2, PageDisplayMode.SINGLE))
     }
+
+    @Test fun halfPageNavigationVisitsBothHalvesBeforeChangingPages() {
+        val top = ReaderLocation(0, PageHalf.TOP)
+        val bottom = ReaderState.move(top, 1, 3, PageDisplayMode.HALF_PAGE)
+        val nextTop = ReaderState.move(bottom, 1, 3, PageDisplayMode.HALF_PAGE)
+
+        assertEquals(ReaderLocation(0, PageHalf.BOTTOM), bottom)
+        assertEquals(ReaderLocation(1, PageHalf.TOP), nextTop)
+        assertEquals(bottom, ReaderState.move(nextTop, -1, 3, PageDisplayMode.HALF_PAGE))
+    }
+
+    @Test fun halfPageNavigationClampsAtDocumentEdges() {
+        assertEquals(
+            ReaderLocation(0, PageHalf.TOP),
+            ReaderState.move(ReaderLocation(0, PageHalf.TOP), -1, 2, PageDisplayMode.HALF_PAGE)
+        )
+        assertEquals(
+            ReaderLocation(1, PageHalf.BOTTOM),
+            ReaderState.move(ReaderLocation(1, PageHalf.BOTTOM), 1, 2, PageDisplayMode.HALF_PAGE)
+        )
+    }
+
+    @Test fun nonHalfPageModesNormalizeTheHalfAndUseTheirOwnStep() {
+        val bottom = ReaderLocation(1, PageHalf.BOTTOM)
+        assertEquals(ReaderLocation(2, PageHalf.TOP), ReaderState.move(bottom, 1, 5, PageDisplayMode.SINGLE))
+        assertEquals(ReaderLocation(2, PageHalf.TOP), ReaderState.move(bottom, 1, 5, PageDisplayMode.TWO_UP))
+        assertEquals(ReaderLocation(2, PageHalf.TOP), ReaderState.move(bottom, 1, 5, PageDisplayMode.VERTICAL_SCROLL))
+    }
+
+    @Test fun readerPreferencesRoundTripThroughJson() {
+        val configured = bach.copy(
+            displayMode = PageDisplayMode.HALF_PAGE,
+            fitMode = PageFitMode.WIDTH,
+            lastHalf = PageHalf.BOTTOM
+        )
+
+        assertEquals(configured, Score.fromJson(configured.toJson()))
+    }
+
+    @Test fun legacyScoresDefaultToSafeReaderPreferences() {
+        val json = bach.toJson().apply {
+            remove("displayMode")
+            remove("fitMode")
+            remove("lastHalf")
+        }
+        val restored = Score.fromJson(json)
+
+        assertEquals(PageDisplayMode.SINGLE, restored.displayMode)
+        assertEquals(PageFitMode.PAGE, restored.fitMode)
+        assertEquals(PageHalf.TOP, restored.lastHalf)
+    }
 }
