@@ -18,6 +18,9 @@ Every pull request must pass:
 - Import and page through representative 10, 100 and 1,000-page PDFs
 - Exercise 100, 1,000 and 10,000-item libraries
 - Verify adjacent-page prefetch and bound bitmap memory
+- Verify half-page turns visit top and bottom exactly once in both directions
+- Verify fit-page, fit-width and fit-height settings survive reader re-entry
+- Scroll every page of representative portrait and landscape documents
 - Run a continuous two-hour page-turn and annotation soak
 - Interrupt imports, exports and transcription jobs at every state
 - Fill storage, revoke document access, provide corrupt PDFs and lose network
