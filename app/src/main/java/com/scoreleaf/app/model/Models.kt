@@ -96,4 +96,17 @@ data class Setlist(
 }
 
 data class InkPoint(val x: Float, val y: Float)
-data class InkStroke(val color: Long, val width: Float, val points: List<InkPoint>)
+enum class AnnotationTool { PEN, HIGHLIGHTER, ERASER }
+
+data class InkStroke(
+    val color: Long,
+    val width: Float,
+    val points: List<InkPoint>,
+    val tool: AnnotationTool = AnnotationTool.PEN,
+    val layerId: String = "default"
+)
+
+data class AnnotationHistory(
+    val strokes: List<InkStroke> = emptyList(),
+    val redo: List<InkStroke> = emptyList()
+)
