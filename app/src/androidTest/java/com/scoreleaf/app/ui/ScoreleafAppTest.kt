@@ -100,6 +100,14 @@ class ScoreleafAppTest {
             swipe(start = centerLeft, end = centerRight, durationMillis = 500)
         }
         compose.onNodeWithContentDescription("Undo").assertIsEnabled()
+        compose.onNodeWithContentDescription("Undo").performClick()
+        compose.onNodeWithContentDescription("Redo").assertIsEnabled()
+        compose.onNodeWithContentDescription("Redo").performClick()
+        compose.onNodeWithContentDescription("Highlighter").performClick()
+        compose.onNodeWithTag("ink-layer").performTouchInput {
+            swipe(start = centerLeft, end = centerRight, durationMillis = 500)
+        }
+        compose.onNodeWithContentDescription("Eraser").assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Library").performClick()
         compose.onNodeWithContentDescription("More").performClick()
@@ -121,6 +129,8 @@ class ScoreleafAppTest {
         compose.onNodeWithContentDescription("Open Flow score").assertIsDisplayed()
         compose.onNodeWithContentDescription("Open Flow score").performClick()
         compose.waitUntilAtLeastOneExists(hasText("2 / 2"), timeoutMillis = 15_000)
+        compose.onNodeWithContentDescription("Annotate").performClick()
+        compose.onNodeWithContentDescription("Undo").assertIsEnabled()
     }
 
     @Test

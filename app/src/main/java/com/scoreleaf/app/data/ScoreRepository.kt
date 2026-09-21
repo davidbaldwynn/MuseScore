@@ -70,7 +70,12 @@ class ScoreRepository(private val context: Context) {
                 (0 until pts.length()).map { p ->
                     val pair = pts.getJSONArray(p)
                     InkPoint(pair.getDouble(0).toFloat(), pair.getDouble(1).toFloat())
-                })
+                },
+                tool = runCatching {
+                    AnnotationTool.valueOf(s.optString("tool", AnnotationTool.PEN.name))
+                }.getOrDefault(AnnotationTool.PEN),
+                layerId = s.optString("layerId", "default")
+            )
         }
     }
 
@@ -80,6 +85,8 @@ class ScoreRepository(private val context: Context) {
             JSONObject().apply {
                 put("color", stroke.color); put("width", stroke.width)
                 put("points", JSONArray(stroke.points.map { JSONArray(listOf(it.x, it.y)) }))
+                put("tool", stroke.tool.name)
+                put("layerId", stroke.layerId)
             }
         }))
         File(context.filesDir, "ink_${scoreId}.json").writeText(root.toString())
