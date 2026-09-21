@@ -10,6 +10,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -23,6 +26,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -41,6 +47,8 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var secondBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var displayMode by remember(score.id) { mutableStateOf(score.displayMode) }
+    var fitMode by remember(score.id) { mutableStateOf(score.fitMode) }
+    var half by remember(score.id) { mutableStateOf(score.lastHalf) }
     var renderError by remember { mutableStateOf<String?>(null) }
     var controls by remember { mutableStateOf(true) }
     var inkMode by remember { mutableStateOf(false) }
@@ -48,22 +56,30 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
     var activePoints by remember { mutableStateOf<List<InkPoint>>(emptyList()) }
     var activePanel by remember { mutableStateOf<ReaderPanel?>(null) }
     val file = remember(score.id) { repo.scoreFile(score) }
+    val pageCache = remember(score.id) { PageRenderCache<Bitmap>(6) }
 
     fun persistPosition() {
-        currentScore = ReaderState.withPage(currentScore, page, pageCount)
+        currentScore = ReaderState.withPage(currentScore, page, pageCount).copy(lastHalf = half)
         repo.updateScore(currentScore)
     }
     fun movePage(direction: Int) {
-        val next = ReaderState.movePage(page, direction, pageCount, displayMode)
-        if (next != page) {
+        val next = ReaderState.move(ReaderLocation(page, half), direction, pageCount, displayMode)
+        if (next != ReaderLocation(page, half)) {
             persistPosition()
-            page = next
+            page = next.page
+            half = next.half
         }
     }
     fun selectDisplayMode(mode: PageDisplayMode) {
         displayMode = mode
+        if (mode != PageDisplayMode.HALF_PAGE) half = PageHalf.TOP
         inkMode = false
-        currentScore = currentScore.copy(displayMode = mode, lastPage = page)
+        currentScore = currentScore.copy(displayMode = mode, lastPage = page, lastHalf = half)
+        repo.updateScore(currentScore)
+    }
+    fun selectFitMode(mode: PageFitMode) {
+        fitMode = mode
+        currentScore = currentScore.copy(fitMode = mode, lastPage = page, lastHalf = half)
         repo.updateScore(currentScore)
     }
     BackHandler { persistPosition(); onBack() }
@@ -72,12 +88,15 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
         renderError = null
         secondBitmap = null
         try {
-            val rendered = renderPage(file, page)
+            val rendered = renderPage(file, page, pageCache)
             pageCount = rendered.second
             bitmap = rendered.first
             if (displayMode == PageDisplayMode.TWO_UP && page + 1 < rendered.second) {
-                secondBitmap = renderPage(file, page + 1).first
+                secondBitmap = renderPage(file, page + 1, pageCache).first
             }
+            val prefetch = listOf(page - 1, page + 1, page + 2)
+                .filter { it in 0 until rendered.second }
+            prefetch.forEach { renderPage(file, it, pageCache) }
         } catch (error: Exception) {
             bitmap = null
             renderError = error.message ?: "This PDF page could not be rendered."
@@ -98,16 +117,22 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
             }, inkMode = inkMode
         ) },
         bottomBar = { if (controls) BottomAppBar {
-            IconButton(onClick = { movePage(-1) }, enabled = page > 0) { Icon(Icons.Default.ChevronLeft, "Previous") }
+            IconButton(
+                onClick = { movePage(-1) },
+                enabled = ReaderState.move(ReaderLocation(page, half), -1, pageCount, displayMode) != ReaderLocation(page, half)
+            ) { Icon(Icons.Default.ChevronLeft, "Previous") }
             val visiblePages = ReaderState.pagesFor(page, pageCount, displayMode)
-            val pageLabel = if (visiblePages.size == 2) {
-                "${visiblePages.first() + 1}–${visiblePages.last() + 1} / $pageCount"
-            } else {
-                "${page + 1} / $pageCount"
+            val pageLabel = when {
+                displayMode == PageDisplayMode.HALF_PAGE -> "${page + 1} ${half.name.lowercase()} / $pageCount"
+                visiblePages.size == 2 -> "${visiblePages.first() + 1}–${visiblePages.last() + 1} / $pageCount"
+                else -> "${page + 1} / $pageCount"
             }
             Text(pageLabel, Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             if (inkMode) IconButton(onClick = { strokes = strokes.dropLast(1); repo.saveStrokes(score.id, page, strokes) }, enabled = strokes.isNotEmpty()) { Icon(Icons.Default.Undo, "Undo") }
-            IconButton(onClick = { movePage(1) }, enabled = ReaderState.movePage(page, 1, pageCount, displayMode) != page) { Icon(Icons.Default.ChevronRight, "Next") }
+            IconButton(
+                onClick = { movePage(1) },
+                enabled = ReaderState.move(ReaderLocation(page, half), 1, pageCount, displayMode) != ReaderLocation(page, half)
+            ) { Icon(Icons.Default.ChevronRight, "Next") }
         } }
     ) { padding ->
         BoxWithConstraints(
@@ -118,7 +143,11 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             bitmap?.let { bmp ->
-                if (displayMode == PageDisplayMode.TWO_UP) {
+                if (displayMode == PageDisplayMode.VERTICAL_SCROLL) {
+                    VerticalScrollReader(file, pageCount, page, fitMode, pageCache) { visiblePage ->
+                        if (visiblePage != page) page = visiblePage
+                    }
+                } else if (displayMode == PageDisplayMode.TWO_UP) {
                     Row(
                         Modifier.fillMaxSize().padding(horizontal = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -129,12 +158,14 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                             Image(second.asImageBitmap(), "Page ${page + 2}", Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Fit)
                         } ?: Spacer(Modifier.weight(1f))
                     }
+                } else if (displayMode == PageDisplayMode.HALF_PAGE) {
+                    HalfPageImage(bmp, page, half, fitMode)
                 } else {
                     val ratio = bmp.width.toFloat() / bmp.height
                     val boxRatio = constraints.maxWidth.toFloat() / constraints.maxHeight
                     val displayModifier = if (ratio > boxRatio) Modifier.fillMaxWidth().aspectRatio(ratio) else Modifier.fillMaxHeight().aspectRatio(ratio)
                     Box(displayModifier) {
-                        Image(bmp.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        Image(bmp.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = fitMode.contentScale())
                         InkLayer(strokes, activePoints, inkMode,
                             onPoints = { activePoints = it },
                             onCommit = { points ->
@@ -159,7 +190,7 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
 
     activePanel?.let { panel ->
         ModalBottomSheet(onDismissRequest = { activePanel = null }) {
-            ReaderPanelContent(panel, currentScore, page, pageCount, displayMode,
+            ReaderPanelContent(panel, currentScore, page, pageCount, displayMode, fitMode,
                 onBookmark = {
                     currentScore = ReaderState.toggleBookmark(currentScore, page)
                     repo.updateScore(currentScore)
@@ -167,6 +198,10 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                 },
                 onDisplayMode = {
                     selectDisplayMode(it)
+                    activePanel = null
+                },
+                onFitMode = {
+                    selectFitMode(it)
                     activePanel = null
                 },
                 onClose = { activePanel = null })
@@ -200,8 +235,10 @@ private fun ReaderPanelContent(
     page: Int,
     pageCount: Int,
     displayMode: PageDisplayMode,
+    fitMode: PageFitMode,
     onBookmark: () -> Unit,
     onDisplayMode: (PageDisplayMode) -> Unit,
+    onFitMode: (PageFitMode) -> Unit,
     onClose: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
@@ -222,6 +259,17 @@ private fun ReaderPanelContent(
                         FilterChip(
                             selected = displayMode == mode,
                             onClick = { onDisplayMode(mode) },
+                            label = { Text(mode.label) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Page fit", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PageFitMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = fitMode == mode,
+                            onClick = { onFitMode(mode) },
                             label = { Text(mode.label) }
                         )
                     }
@@ -271,16 +319,80 @@ private fun InkLayer(strokes: List<InkStroke>, active: List<InkPoint>, enabled: 
     }
 }
 
-private suspend fun renderPage(file: File, index: Int): Pair<Bitmap, Int> = withContext(Dispatchers.IO) {
+private fun PageFitMode.contentScale() = when (this) {
+    PageFitMode.PAGE -> ContentScale.Fit
+    PageFitMode.WIDTH -> ContentScale.FillWidth
+    PageFitMode.HEIGHT -> ContentScale.FillHeight
+}
+
+@Composable
+private fun HalfPageImage(bitmap: Bitmap, page: Int, half: PageHalf, fitMode: PageFitMode) {
+    BoxWithConstraints(
+        Modifier.fillMaxSize().clipToBounds().semantics {
+            contentDescription = "Page ${page + 1} ${half.name.lowercase()} half"
+        }
+    ) {
+        Image(
+            bitmap.asImageBitmap(),
+            null,
+            Modifier.fillMaxWidth().height(maxHeight * 2)
+                .offset(y = if (half == PageHalf.BOTTOM) -maxHeight else 0.dp),
+            contentScale = if (fitMode == PageFitMode.HEIGHT) ContentScale.FillHeight else ContentScale.FillWidth
+        )
+    }
+}
+
+@Composable
+private fun VerticalScrollReader(
+    file: File,
+    pageCount: Int,
+    initialPage: Int,
+    fitMode: PageFitMode,
+    cache: PageRenderCache<Bitmap>,
+    onVisiblePage: (Int) -> Unit
+) {
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialPage.coerceAtLeast(0))
+    LaunchedEffect(listState.firstVisibleItemIndex) {
+        onVisiblePage(listState.firstVisibleItemIndex)
+    }
+    LazyColumn(
+        Modifier.fillMaxSize().semantics { contentDescription = "Scrollable score" },
+        state = listState,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(pageCount) { index ->
+            var rendered by remember(file, index) { mutableStateOf(cache[index]) }
+            LaunchedEffect(file, index) {
+                if (rendered == null) {
+                    rendered = runCatching { renderPage(file, index, cache).first }.getOrNull()
+                }
+            }
+            Box(Modifier.fillParentMaxWidth().aspectRatio(0.75f), contentAlignment = Alignment.Center) {
+                rendered?.let {
+                    Image(
+                        it.asImageBitmap(),
+                        "Page ${index + 1}",
+                        Modifier.fillMaxSize(),
+                        contentScale = fitMode.contentScale()
+                    )
+                } ?: CircularProgressIndicator()
+            }
+        }
+    }
+}
+
+private suspend fun renderPage(file: File, index: Int, cache: PageRenderCache<Bitmap>): Pair<Bitmap, Int> = withContext(Dispatchers.IO) {
     val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     PdfRenderer(descriptor).use { renderer ->
         val safeIndex = index.coerceIn(0, renderer.pageCount - 1)
-        renderer.openPage(safeIndex).use { page ->
-            val scale = 2f
-            val bitmap = Bitmap.createBitmap((page.width * scale).toInt(), (page.height * scale).toInt(), Bitmap.Config.ARGB_8888)
-            bitmap.eraseColor(android.graphics.Color.WHITE)
-            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-            bitmap to renderer.pageCount
-        }
+        cache.getOrPut(safeIndex) {
+            renderer.openPage(safeIndex).use { page ->
+                val scale = 2f
+                Bitmap.createBitmap((page.width * scale).toInt(), (page.height * scale).toInt(), Bitmap.Config.ARGB_8888).also { bitmap ->
+                    bitmap.eraseColor(android.graphics.Color.WHITE)
+                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                }
+            }
+        } to renderer.pageCount
     }.also { descriptor.close() }
 }
