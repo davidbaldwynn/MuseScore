@@ -19,7 +19,9 @@ data class Score(
     val addedAt: Long = System.currentTimeMillis(),
     val lastPage: Int = 0,
     val bookmarkedPages: Set<Int> = emptySet(),
-    val displayMode: PageDisplayMode = PageDisplayMode.SINGLE
+    val displayMode: PageDisplayMode = PageDisplayMode.SINGLE,
+    val fitMode: PageFitMode = PageFitMode.PAGE,
+    val lastHalf: PageHalf = PageHalf.TOP
 ) {
     fun toJson() = JSONObject().apply {
         put("id", id); put("title", title); put("fileName", fileName)
@@ -29,6 +31,8 @@ data class Score(
         put("addedAt", addedAt); put("lastPage", lastPage)
         put("bookmarks", JSONArray(bookmarkedPages.toList()))
         put("displayMode", displayMode.name)
+        put("fitMode", fitMode.name)
+        put("lastHalf", lastHalf.name)
     }
 
     companion object {
@@ -46,15 +50,33 @@ data class Score(
             } ?: emptySet(),
             displayMode = runCatching {
                 PageDisplayMode.valueOf(json.optString("displayMode", PageDisplayMode.SINGLE.name))
-            }.getOrDefault(PageDisplayMode.SINGLE)
+            }.getOrDefault(PageDisplayMode.SINGLE),
+            fitMode = runCatching {
+                PageFitMode.valueOf(json.optString("fitMode", PageFitMode.PAGE.name))
+            }.getOrDefault(PageFitMode.PAGE),
+            lastHalf = runCatching {
+                PageHalf.valueOf(json.optString("lastHalf", PageHalf.TOP.name))
+            }.getOrDefault(PageHalf.TOP)
         )
     }
 }
 
 enum class PageDisplayMode(val label: String) {
     SINGLE("Single page"),
-    TWO_UP("Two pages")
+    TWO_UP("Two pages"),
+    HALF_PAGE("Half page"),
+    VERTICAL_SCROLL("Vertical scroll")
 }
+
+enum class PageFitMode(val label: String) {
+    PAGE("Fit page"),
+    WIDTH("Fit width"),
+    HEIGHT("Fit height")
+}
+
+enum class PageHalf { TOP, BOTTOM }
+
+data class ReaderLocation(val page: Int, val half: PageHalf = PageHalf.TOP)
 
 data class Setlist(
     val id: String = UUID.randomUUID().toString(),
