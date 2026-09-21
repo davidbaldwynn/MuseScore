@@ -14,7 +14,8 @@ Scoreleaf is an original, offline-first Android implementation targeting forScor
 - Undo annotations per page
 - Bookmarks and automatic return to the last-read page
 - Searchable local library
-- Create setlists and add scores to them
+- Edit title, composer, genre, tags, key, tempo, duration, rating, and difficulty
+- Create ordered setlists, remove/reorder entries, and open scores directly from them
 - Open PDFs shared into the app
 - Offline-only storage; no account and no analytics
 
