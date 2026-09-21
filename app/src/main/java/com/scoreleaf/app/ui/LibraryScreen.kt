@@ -20,6 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.scoreleaf.app.data.ScoreRepository
@@ -73,7 +75,14 @@ fun LibraryScreen(repo: ScoreRepository, onOpen: (Score) -> Unit) {
                 LibrarySection.entries.forEach { item -> Tab(selected = content == item, onClick = { content = item }, text = { Text(item.label) }) }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(query, { query = it }, Modifier.weight(1f), placeholder = { Text("Search") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
+                OutlinedTextField(
+                    query,
+                    { query = it },
+                    Modifier.weight(1f).semantics { contentDescription = "Library search" },
+                    placeholder = { Text("Search") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    singleLine = true
+                )
                 IconButton(onClick = { grid = !grid }) { Icon(if (grid) Icons.Default.ViewList else Icons.Default.GridView, if (grid) "List" else "Grid") }
                 IconButton(onClick = { showSetlists = !showSetlists }) { Icon(Icons.Default.Sort, "Sort and filter") }
             }
