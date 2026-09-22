@@ -9,7 +9,7 @@ class MusicSiteTest {
     @Test
     fun supportedSitesUseSecureCanonicalHomes() {
         assertEquals(
-            listOf("Music-Scores", "MuseScore", "IMSLP", "Musicnotes", "Virtual Sheet Music", "8notes", "Free-scores"),
+            listOf("Music-Scores", "MuseScore", "MuseScore sandbox", "IMSLP", "Musicnotes", "Virtual Sheet Music", "8notes", "Free-scores"),
             MusicSite.entries.map { it.label }
         )
         MusicSite.entries.forEach { site ->
@@ -44,5 +44,41 @@ class MusicSiteTest {
         assertEquals("Downloaded score.pdf", MusicSitePolicy.pdfFileName(".."))
         assertEquals("Etude.pdf", MusicSitePolicy.pdfFileName("Etude"))
         assertEquals("score.pdf", MusicSitePolicy.pdfFileName("attachment; filename=score.pdf"))
+    }
+
+    @Test
+    fun sandboxAdapterBuildsOnlySameHostAuthorizedExportUrls() {
+        val config = MuseScoreSandboxConfig(
+            baseUrl = "https://sandbox.sheetmusic.example/",
+            pdfExportTemplate = "https://sandbox.sheetmusic.example/api/test/scores/{scoreId}/export.pdf"
+        )
+
+        assertEquals(
+            "https://sandbox.sheetmusic.example/api/test/scores/abc-123/export.pdf",
+            MuseScoreSandboxPolicy.exportPdfUrl(
+                "https://sandbox.sheetmusic.example/scores/abc-123",
+                config
+            )
+        )
+        assertEquals(null, MuseScoreSandboxPolicy.exportPdfUrl("https://attacker.example/scores/abc-123", config))
+        assertEquals(null, MuseScoreSandboxPolicy.exportPdfUrl("http://sandbox.sheetmusic.example/scores/abc-123", config))
+        assertEquals(null, MuseScoreSandboxPolicy.exportPdfUrl("https://sandbox.sheetmusic.example/scores/../../secret", config))
+    }
+
+    @Test
+    fun sandboxAdapterCannotBeConfiguredForProductionMuseScore() {
+        listOf("musescore.com", "www.musescore.com", "api.musescore.com").forEach { host ->
+            val config = MuseScoreSandboxConfig(
+                baseUrl = "https://$host/",
+                pdfExportTemplate = "https://$host/api/scores/{scoreId}/export.pdf"
+            )
+            assertFalse(MuseScoreSandboxPolicy.isConfigured(config))
+            assertEquals(null, MuseScoreSandboxPolicy.exportPdfUrl("https://$host/scores/123", config))
+        }
+    }
+
+    @Test
+    fun placeholderSandboxConstantsStayDisabledUntilExplicitlyConfigured() {
+        assertFalse(MuseScoreSandboxPolicy.isConfigured())
     }
 }

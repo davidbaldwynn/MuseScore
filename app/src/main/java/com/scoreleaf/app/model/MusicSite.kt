@@ -1,5 +1,6 @@
 package com.scoreleaf.app.model
 
+import com.scoreleaf.app.ScoreleafConstants
 import java.net.URI
 
 enum class MusicSite(
@@ -19,6 +20,12 @@ enum class MusicSite(
         homeUrl = "https://musescore.com/sheetmusic",
         description = "Community and licensed sheet music available through your account",
         hosts = setOf("musescore.com", "www.musescore.com")
+    ),
+    MUSESCORE_SANDBOX(
+        label = "MuseScore sandbox",
+        homeUrl = ScoreleafConstants.MUSESCORE_SANDBOX_BASE_URL,
+        description = "Authorized test environment configured in ScoreleafConstants",
+        hosts = setOfNotNull(runCatching { URI(ScoreleafConstants.MUSESCORE_SANDBOX_BASE_URL).host }.getOrNull())
     ),
     IMSLP(
         label = "IMSLP",
@@ -50,6 +57,49 @@ enum class MusicSite(
         description = "Free and licensed PDF, MIDI and audio resources",
         hosts = setOf("free-scores.com", "www.free-scores.com")
     )
+}
+
+data class MuseScoreSandboxConfig(
+    val baseUrl: String = ScoreleafConstants.MUSESCORE_SANDBOX_BASE_URL,
+    val pdfExportTemplate: String = ScoreleafConstants.MUSESCORE_SANDBOX_PDF_EXPORT_TEMPLATE
+)
+
+object MuseScoreSandboxPolicy {
+    private val productionHosts = setOf("musescore.com", "www.musescore.com", "api.musescore.com")
+    private val scorePath = Regex("/(?:score|scores)/([A-Za-z0-9_-]+)(?:/|$)")
+
+    fun isConfigured(config: MuseScoreSandboxConfig = MuseScoreSandboxConfig()): Boolean = runCatching {
+        val base = URI(config.baseUrl)
+        val export = URI(config.pdfExportTemplate.replace("{scoreId}", "test-score"))
+        val host = base.host?.lowercase() ?: return@runCatching false
+        base.scheme.equals("https", true) &&
+            base.rawUserInfo == null &&
+            host !in productionHosts &&
+            !host.endsWith(".test") &&
+            export.scheme.equals("https", true) &&
+            export.rawUserInfo == null &&
+            export.host.equals(host, true) &&
+            config.pdfExportTemplate.contains("{scoreId}")
+    }.getOrDefault(false)
+
+    fun exportPdfUrl(
+        pageUrl: String,
+        config: MuseScoreSandboxConfig = MuseScoreSandboxConfig()
+    ): String? = runCatching {
+        if (!isConfigured(config)) return@runCatching null
+        val base = URI(config.baseUrl)
+        val page = URI(pageUrl)
+        if (!page.scheme.equals("https", true) || page.rawUserInfo != null || !page.host.equals(base.host, true)) {
+            return@runCatching null
+        }
+        val scoreId = scorePath.findAll(page.path.orEmpty()).lastOrNull()?.groupValues?.get(1)
+            ?: return@runCatching null
+        val export = URI(config.pdfExportTemplate.replace("{scoreId}", scoreId))
+        if (!export.scheme.equals("https", true) || export.rawUserInfo != null || !export.host.equals(base.host, true)) {
+            return@runCatching null
+        }
+        export.toString()
+    }.getOrNull()
 }
 
 object MusicSitePolicy {

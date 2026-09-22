@@ -1,6 +1,7 @@
 package com.scoreleaf.app.ui
 
 import android.annotation.SuppressLint
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,16 +46,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.scoreleaf.app.data.ScoreRepository
 import com.scoreleaf.app.model.MusicSite
 import com.scoreleaf.app.model.MusicSitePolicy
+import com.scoreleaf.app.model.MuseScoreSandboxPolicy
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MusicSitePicker(onBack: () -> Unit, onOpen: (MusicSite) -> Unit) {
+    val context = LocalContext.current
+    val isDebuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("Import from a music site") },
@@ -68,7 +74,9 @@ fun MusicSitePicker(onBack: () -> Unit, onOpen: (MusicSite) -> Unit) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.bodyMedium
             )
-            MusicSite.entries.forEach { site ->
+            MusicSite.entries.filter { site ->
+                site != MusicSite.MUSESCORE_SANDBOX || (isDebuggable && MuseScoreSandboxPolicy.isConfigured())
+            }.forEach { site ->
                 ListItem(
                     headlineContent = { Text(site.label) },
                     supportingContent = { Text(site.description) },
@@ -89,6 +97,30 @@ fun MusicSiteBrowser(repo: ScoreRepository, site: MusicSite, onClose: () -> Unit
     var webView by remember { mutableStateOf<WebView?>(null) }
     var progress by remember { mutableFloatStateOf(0f) }
     var downloading by remember { mutableStateOf(false) }
+    var currentUrl by remember { mutableStateOf(site.homeUrl) }
+
+    fun importSandboxPdf() {
+        val exportUrl = MuseScoreSandboxPolicy.exportPdfUrl(currentUrl)
+        if (site != MusicSite.MUSESCORE_SANDBOX || exportUrl == null) {
+            scope.launch { snackbar.showSnackbar("Open a score in the configured sandbox first") }
+            return
+        }
+        val browser = webView ?: return
+        scope.launch {
+            downloading = true
+            val result = runCatching {
+                repo.importWebPdf(
+                    exportUrl,
+                    CookieManager.getInstance().getCookie(exportUrl),
+                    browser.settings.userAgentString,
+                    "attachment; filename=Sandbox score.pdf"
+                )
+            }
+            downloading = false
+            result.onSuccess { score -> snackbar.showSnackbar("Imported ${score.title}") }
+                .onFailure { error -> snackbar.showSnackbar(error.message ?: "Sandbox PDF export failed") }
+        }
+    }
 
     BackHandler {
         val browser = webView
@@ -104,6 +136,12 @@ fun MusicSiteBrowser(repo: ScoreRepository, site: MusicSite, onClose: () -> Unit
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close browser") }
                 },
                 actions = {
+                    if (site == MusicSite.MUSESCORE_SANDBOX) {
+                        IconButton(
+                            onClick = ::importSandboxPdf,
+                            enabled = !downloading && MuseScoreSandboxPolicy.exportPdfUrl(currentUrl) != null
+                        ) { Icon(Icons.Default.Download, "Import sandbox PDF") }
+                    }
                     IconButton(onClick = { webView?.goBack() }, enabled = webView?.canGoBack() == true) {
                         Icon(Icons.Default.ArrowBack, "Browser back")
                     }
@@ -153,10 +191,12 @@ fun MusicSiteBrowser(repo: ScoreRepository, site: MusicSite, onClose: () -> Unit
                             }
 
                             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                                url?.let { currentUrl = it }
                                 progress = 0f
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
+                                url?.let { currentUrl = it }
                                 progress = 1f
                             }
                         }
