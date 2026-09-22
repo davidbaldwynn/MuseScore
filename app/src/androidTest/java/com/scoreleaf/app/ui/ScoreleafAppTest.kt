@@ -225,6 +225,34 @@ class ScoreleafAppTest {
         descriptor.close()
     }
 
+    @Test
+    fun typedAnnotationsAndNamedLayersPersistAcrossRepositoryInstances() {
+        val repo = ScoreRepository(context)
+        val score = runBlocking {
+            repo.importPdf(Uri.fromFile(createPdf("typed.pdf", 1)), "Typed score.pdf")
+        }
+        val layer = com.scoreleaf.app.model.AnnotationLayer(name = "Rehearsal", visible = false, locked = true)
+        repo.saveLayers(score.id, listOf(com.scoreleaf.app.model.AnnotationLayer.DEFAULT, layer))
+        repo.saveStrokes(score.id, 0, listOf(
+            com.scoreleaf.app.model.InkStroke(
+                color = Color.BLUE.toLong(),
+                width = 4f,
+                points = listOf(com.scoreleaf.app.model.InkPoint(.2f, .2f), com.scoreleaf.app.model.InkPoint(.7f, .6f)),
+                tool = com.scoreleaf.app.model.AnnotationTool.RECTANGLE,
+                layerId = layer.id,
+                text = "Verse 2",
+                pressures = listOf(.25f, .75f)
+            )
+        ))
+
+        val reopened = ScoreRepository(context)
+        val restored = reopened.strokes(score.id, 0).single()
+        assertEquals(com.scoreleaf.app.model.AnnotationTool.RECTANGLE, restored.tool)
+        assertEquals("Verse 2", restored.text)
+        assertEquals(listOf(.25f, .75f), restored.pressures)
+        assertEquals(layer, reopened.layers(score.id).last())
+    }
+
     private fun launchApp() {
         compose.setContent {
             ScoreleafTheme {
