@@ -5,6 +5,10 @@ Scoreleaf is an original, offline-first Android implementation targeting forScor
 ## Current alpha features
 
 - Import PDFs from Files, Drive, email, or any Android document provider
+- Browse Music-Scores, MuseScore, IMSLP, Musicnotes, Virtual Sheet Music,
+  8notes, and Free-scores in authenticated in-app browsers and automatically
+  import authorized PDF downloads
+- Cancel the Scoreleaf import-source flow before opening Android's file picker
 - Full-screen, tablet-friendly PDF reader
 - Tap page edges for fast page turning; tap the center to hide controls
 - Single-page, two-page, half-page-turn, and vertical-scrolling layouts
@@ -12,6 +16,7 @@ Scoreleaf is an original, offline-first Android implementation targeting forScor
 - Bounded page cache with adjacent-page prefetch
 - Pen and translucent highlighter annotations stored in normalized coordinates
 - Vector eraser plus lossless per-page undo and redo
+- Export and share standard PDFs with annotations permanently flattened
 - Bookmarks and automatic return to the last-read page
 - Searchable local library
 - Edit title, composer, genre, tags, key, tempo, duration, rating, and difficulty
@@ -35,12 +40,13 @@ Before public release, change `applicationId` to a domain you control, add a pri
 
 - Bluetooth pedal and MIDI actions
 - Crop/Reflow margins and zoom controls
-- Annotation colors, highlighter, eraser, shapes, and text
-- Export annotated PDFs
+- Annotation presets, pressure, shapes, text, stamps, lasso, and named layers
 - Backup/restore archive and optional WebDAV/Drive sync
-- Metadata editing, tags, composers, and setlist reordering
+- Resilient transfer queue, duplicate handling, batch/ZIP imports, and native
+  provider adapters where officially supported
 
 The full parity scope and release gates are tracked in [FEATURE_PARITY.md](FEATURE_PARITY.md).
+Import and marketplace checkpoints are tracked in [IMPORT_SOURCES.md](IMPORT_SOURCES.md).
 
 ## Architecture
 

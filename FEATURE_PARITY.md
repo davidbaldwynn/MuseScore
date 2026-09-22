@@ -28,7 +28,7 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 | Performance | Bluetooth pedals, keyboard shortcuts, MIDI in/out, remote page turns | Planned |
 | Audio | Attach tracks, looping, pitch/tempo changes, recorded page turns | Planned |
 | Utilities | Metronome, pitch pipe, tuner, piano, timer, practice log | UI shell |
-| Import/export | Files/cloud providers, provider marketplaces, scan, annotated PDF export, archives | Partial: PDF file import/export; authenticated provider browsers in progress |
+| Import/export | Files/cloud providers, provider marketplaces, scan, annotated PDF export, archives | Partial: PDF file import/export and authenticated provider browsers |
 | Sync/backup | Local archive, WebDAV/Drive sync, conflicts, restore | Planned |
 | Android platform | Stylus pressure/hover, multi-window, intents, widgets/shortcuts | Intents only |
 
