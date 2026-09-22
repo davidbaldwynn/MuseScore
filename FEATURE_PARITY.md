@@ -28,7 +28,7 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 | Performance | Bluetooth pedals, keyboard shortcuts, MIDI in/out, remote page turns | Planned |
 | Audio | Attach tracks, looping, pitch/tempo changes, recorded page turns | Planned |
 | Utilities | Metronome, pitch pipe, tuner, piano, timer, practice log | UI shell |
-| Import/export | Files/cloud providers, scan, annotated PDF export, archives | PDF import |
+| Import/export | Files/cloud providers, provider marketplaces, scan, annotated PDF export, archives | Partial: PDF file import/export; authenticated provider browsers in progress |
 | Sync/backup | Local archive, WebDAV/Drive sync, conflicts, restore | Planned |
 | Android platform | Stylus pressure/hover, multi-window, intents, widgets/shortcuts | Intents only |
 
@@ -56,6 +56,11 @@ branding, or source code.
 2. **Annotation beta:** vector layer model, pressure-aware ink, highlighter, eraser, selection, text, shapes, music stamps, named layers, flatten/export.
 3. **Score-workflow beta:** bookmarks and indexes, page rearrangement, links/buttons, audio attachments, metronome/pitch/tuner/piano, backup archive.
 4. **Parity release:** OCR/Reflow, Drive/WebDAV sync, MIDI, remote coordination, multi-window, automation shortcuts, accessibility and large-library performance testing.
+
+The checkpointed provider, transfer, cloud, and format work is specified in
+[IMPORT_SOURCES.md](IMPORT_SOURCES.md). A provider browser does not count as a
+complete native service integration unless purchase discovery, transfer states,
+duplicate handling, logout, and provider-specific acceptance tests also pass.
 
 ## Non-negotiable quality bars
 

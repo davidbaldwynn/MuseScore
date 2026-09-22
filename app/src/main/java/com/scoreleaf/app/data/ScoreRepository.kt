@@ -13,6 +13,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URI
+import java.net.URL
 
 class ScoreRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("scoreleaf", Context.MODE_PRIVATE)
@@ -31,6 +34,80 @@ class ScoreRepository(private val context: Context) {
         }
         saveScores(scores() + score)
         score
+    }
+
+    suspend fun importWebPdf(
+        url: String,
+        cookies: String?,
+        userAgent: String?,
+        contentDisposition: String?
+    ): Score = withContext(Dispatchers.IO) {
+        require(MusicSitePolicy.canNavigate(url)) { "Only secure HTTPS downloads are allowed" }
+        val temporary = File.createTempFile("score-download-", ".pdf", context.cacheDir)
+        try {
+            val finalDisposition = downloadPdf(url, cookies, userAgent, temporary) ?: contentDisposition
+            val header = ByteArray(1024)
+            val count = temporary.inputStream().buffered().use { it.read(header) }
+            require(count > 0 && String(header, 0, count, Charsets.ISO_8859_1).contains("%PDF-")) {
+                "The downloaded file is not a valid PDF"
+            }
+            importPdf(Uri.fromFile(temporary), MusicSitePolicy.pdfFileName(finalDisposition))
+        } finally {
+            temporary.delete()
+        }
+    }
+
+    private fun downloadPdf(
+        startUrl: String,
+        cookies: String?,
+        userAgent: String?,
+        target: File
+    ): String? {
+        val originHost = URI(startUrl).host
+        var current = startUrl
+        repeat(6) { redirectCount ->
+            require(MusicSitePolicy.canNavigate(current)) { "Download redirected to an unsafe address" }
+            val connection = URL(current).openConnection() as HttpURLConnection
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 20_000
+            connection.readTimeout = 45_000
+            connection.setRequestProperty("Accept", "application/pdf,application/octet-stream;q=0.9")
+            if (!userAgent.isNullOrBlank()) connection.setRequestProperty("User-Agent", userAgent)
+            if (!cookies.isNullOrBlank() && URI(current).host.equals(originHost, true)) {
+                connection.setRequestProperty("Cookie", cookies)
+            }
+            try {
+                val status = connection.responseCode
+                if (status in 300..399) {
+                    require(redirectCount < 5) { "Too many download redirects" }
+                    val location = connection.getHeaderField("Location")
+                    require(!location.isNullOrBlank()) { "Download redirect had no destination" }
+                    current = URI(current).resolve(location).toString()
+                    return@repeat
+                }
+                require(status in 200..299) { "Download failed (HTTP $status)" }
+                val declaredSize = connection.contentLengthLong
+                require(declaredSize < MAX_WEB_PDF_BYTES || declaredSize == -1L) { "PDF is larger than 250 MB" }
+                var total = 0L
+                connection.inputStream.buffered().use { input ->
+                    target.outputStream().buffered().use { output ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            total += read
+                            require(total <= MAX_WEB_PDF_BYTES) { "PDF is larger than 250 MB" }
+                            output.write(buffer, 0, read)
+                        }
+                    }
+                }
+                require(total > 0) { "The downloaded PDF was empty" }
+                return connection.getHeaderField("Content-Disposition")
+            } finally {
+                connection.disconnect()
+            }
+        }
+        error("Too many download redirects")
     }
 
     fun updateScore(updated: Score) = saveScores(scores().map { if (it.id == updated.id) updated else it })
@@ -154,4 +231,8 @@ class ScoreRepository(private val context: Context) {
 
     private fun saveScores(items: List<Score>) = prefs.edit().putString("scores", JSONArray(items.map { it.toJson() }).toString()).apply()
     private fun saveSetlists(items: List<Setlist>) = prefs.edit().putString("setlists", JSONArray(items.map { it.toJson() }).toString()).apply()
+
+    private companion object {
+        const val MAX_WEB_PDF_BYTES = 250L * 1024L * 1024L
+    }
 }

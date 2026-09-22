@@ -9,7 +9,7 @@ class MusicSiteTest {
     @Test
     fun supportedSitesUseSecureCanonicalHomes() {
         assertEquals(
-            listOf("Music-Scores", "MuseScore"),
+            listOf("Music-Scores", "MuseScore", "IMSLP", "Musicnotes", "Virtual Sheet Music", "8notes", "Free-scores"),
             MusicSite.entries.map { it.label }
         )
         MusicSite.entries.forEach { site ->

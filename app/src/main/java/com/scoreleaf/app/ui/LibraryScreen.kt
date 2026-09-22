@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(repo: ScoreRepository, onOpen: (Score) -> Unit) {
+fun LibraryScreen(repo: ScoreRepository, onOpen: (Score) -> Unit, onBrowseSites: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var scores by remember { mutableStateOf(repo.scores()) }
@@ -48,6 +48,7 @@ fun LibraryScreen(repo: ScoreRepository, onOpen: (Score) -> Unit) {
     var showNewSetlist by remember { mutableStateOf(false) }
     var content by remember { mutableStateOf(LibrarySection.ALL) }
     var grid by remember { mutableStateOf(false) }
+    var showImportSources by remember { mutableStateOf(false) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -64,11 +65,11 @@ fun LibraryScreen(repo: ScoreRepository, onOpen: (Score) -> Unit) {
                 title = { Column { Text("Scoreleaf", fontWeight = FontWeight.SemiBold); Text("Your music, ready to play", style = MaterialTheme.typography.labelSmall) } },
                 actions = {
                     IconButton(onClick = { showSetlists = !showSetlists }) { Icon(Icons.Default.QueueMusic, "Setlists") }
-                    IconButton(onClick = { picker.launch(arrayOf("application/pdf")) }) { Icon(Icons.Default.Add, "Import PDF") }
+                    IconButton(onClick = { showImportSources = true }) { Icon(Icons.Default.Add, "Import PDF") }
                 }
             )
         },
-        floatingActionButton = { ExtendedFloatingActionButton(onClick = { picker.launch(arrayOf("application/pdf")) }, icon = { Icon(Icons.Default.PictureAsPdf, null) }, text = { Text("Import PDF") }) }
+        floatingActionButton = { ExtendedFloatingActionButton(onClick = { showImportSources = true }, icon = { Icon(Icons.Default.PictureAsPdf, null) }, text = { Text("Import PDF") }) }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp)) {
             ScrollableTabRow(selectedTabIndex = content.ordinal, edgePadding = 0.dp, divider = {}) {
@@ -176,6 +177,27 @@ fun LibraryScreen(repo: ScoreRepository, onOpen: (Score) -> Unit) {
             }
         }
     }
+
+    if (showImportSources) AlertDialog(
+        onDismissRequest = { showImportSources = false },
+        title = { Text("Add sheet music") },
+        text = {
+            Column {
+                TextButton(onClick = {
+                    showImportSources = false
+                    picker.launch(arrayOf("application/pdf"))
+                }) { Text("Choose a PDF file") }
+                TextButton(onClick = {
+                    showImportSources = false
+                    onBrowseSites()
+                }) { Text("Browse music sites") }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = { showImportSources = false }) { Text("Cancel") }
+        }
+    )
 
     if (showNewSetlist) AlertDialog(onDismissRequest = { showNewSetlist = false }, title = { Text("New setlist") }, text = { OutlinedTextField(newSetlist, { newSetlist = it }, label = { Text("Name") }) }, confirmButton = { TextButton(onClick = { repo.createSetlist(newSetlist); setlists = repo.setlists(); newSetlist = ""; showNewSetlist = false }) { Text("Create") } }, dismissButton = { TextButton(onClick = { showNewSetlist = false }) { Text("Cancel") } })
 
