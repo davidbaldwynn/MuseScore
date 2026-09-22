@@ -99,6 +99,22 @@ class MusicSiteTest {
     }
 
     @Test
+    fun sandboxAcceptsProductionShapedScorePathsWithOnlyTheHostSubstituted() {
+        assertEquals(
+            "456789",
+            MuseScoreSandboxPolicy.scoreId("https://musescore.test/user/12345/scores/456789")
+        )
+        assertEquals(
+            "456789",
+            MuseScoreSandboxPolicy.scoreId("https://musescore.test/composer-name/scores/456789")
+        )
+        assertEquals(
+            null,
+            MuseScoreSandboxPolicy.scoreId("https://musescore.com/user/12345/scores/456789")
+        )
+    }
+
+    @Test
     fun sandboxMediaResponsesCannotEscapeTheTestDomain() {
         assertEquals(
             "https://cdn.musescore.test/scores/12345/page-2.svg",
