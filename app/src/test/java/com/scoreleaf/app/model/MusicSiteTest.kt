@@ -83,6 +83,12 @@ class MusicSiteTest {
     }
 
     @Test
+    fun configuredSandboxIsVisibleInDebugAndReleaseBuilds() {
+        assertTrue(MuseScoreSandboxPolicy.isVisible(isDebuggable = true))
+        assertTrue(MuseScoreSandboxPolicy.isVisible(isDebuggable = false))
+    }
+
+    @Test
     fun sandboxPageRequestsIncludeScoreIdIndexAndImageType() {
         assertEquals(
             "https://musescore.test/api/jmuse?id=12345&index=7&type=img",
