@@ -10,6 +10,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -308,9 +309,11 @@ class ScoreleafAppTest {
         compose.onNodeWithText("Advanced annotations").performClick()
         compose.waitUntilAtLeastOneExists(hasText("1 / 1"), timeoutMillis = 15_000)
         compose.onNodeWithContentDescription("Annotate").performClick()
+        compose.waitUntilAtLeastOneExists(hasTestTag("ink-layer"), timeoutMillis = 15_000)
 
         compose.onNodeWithContentDescription("Annotation tools").performClick()
         compose.onNodeWithText("Rectangle").performClick()
+        compose.waitUntilAtLeastOneExists(hasTestTag("ink-layer"), timeoutMillis = 15_000)
         compose.onNodeWithTag("ink-layer").performTouchInput {
             swipe(Offset(width * .25f, height * .25f), Offset(width * .75f, height * .7f), 500)
         }
