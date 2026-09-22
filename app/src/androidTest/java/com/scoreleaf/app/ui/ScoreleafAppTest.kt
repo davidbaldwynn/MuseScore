@@ -56,6 +56,39 @@ class ScoreleafAppTest {
     }
 
     @Test
+    fun musicSiteBrowserFlowListsProvidersAndOpensDedicatedBrowser() {
+        launchApp()
+
+        compose.onNodeWithContentDescription("Import PDF").performClick()
+        compose.onNodeWithText("Add sheet music").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
+        compose.onNodeWithText("Browse music sites").performClick()
+        compose.onNodeWithText("Import from a music site").assertIsDisplayed()
+        compose.onNodeWithText("Music-Scores").assertIsDisplayed()
+        compose.onNodeWithText("MuseScore").assertIsDisplayed()
+        compose.onNodeWithText("IMSLP").assertIsDisplayed()
+        compose.onNodeWithText("Musicnotes").assertIsDisplayed()
+
+        compose.onNodeWithText("Music-Scores").performClick()
+        compose.onNodeWithText("Music-Scores browser").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Browser back").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Browser forward").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Reload page").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Close browser").performClick()
+        compose.onNodeWithText("Import from a music site").assertIsDisplayed()
+    }
+
+    @Test
+    fun importSourceDialogCanBeCancelledWithoutOpeningSystemPicker() {
+        launchApp()
+
+        compose.onNodeWithContentDescription("Import PDF").performClick()
+        compose.onNodeWithText("Add sheet music").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("Bring your music with you").assertIsDisplayed()
+    }
+
+    @Test
     fun importedPdfOpensTurnsBookmarksAnnotatesAndCreatesSetlist() {
         runBlocking {
             ScoreRepository(context).importPdf(
