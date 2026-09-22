@@ -1,6 +1,7 @@
 package com.scoreleaf.app.model
 
 import com.scoreleaf.app.ScoreleafConstants
+import org.json.JSONObject
 import java.net.URI
 
 enum class MusicSite(
@@ -65,7 +66,6 @@ data class MuseScoreSandboxConfig(
 )
 
 object MuseScoreSandboxPolicy {
-    private val productionHosts = setOf("musescore.com", "www.musescore.com", "api.musescore.com")
     private val scorePath = Regex("/(?:score|scores)/([A-Za-z0-9_-]+)(?:/|$)")
 
     fun isConfigured(config: MuseScoreSandboxConfig = MuseScoreSandboxConfig()): Boolean = runCatching {
@@ -74,8 +74,8 @@ object MuseScoreSandboxPolicy {
         val host = base.host?.lowercase() ?: return@runCatching false
         base.scheme.equals("https", true) &&
             base.rawUserInfo == null &&
-            host !in productionHosts &&
-            !host.endsWith(".test") &&
+            host != "musescore.com" && !host.endsWith(".musescore.com") &&
+            (host == "musescore.test" || host.endsWith(".musescore.test") || !host.endsWith(".test")) &&
             export.scheme.equals("https", true) &&
             export.rawUserInfo == null &&
             export.host.equals(host, true) &&
@@ -99,6 +99,33 @@ object MuseScoreSandboxPolicy {
             return@runCatching null
         }
         export.toString()
+    }.getOrNull()
+
+    fun scoreId(pageUrl: String): String? = runCatching {
+        val page = URI(pageUrl)
+        val base = URI(ScoreleafConstants.MUSESCORE_SANDBOX_BASE_URL)
+        if (!page.scheme.equals("https", true) || !page.host.equals(base.host, true)) return@runCatching null
+        scorePath.findAll(page.path.orEmpty()).lastOrNull()?.groupValues?.get(1)
+    }.getOrNull()
+
+    fun pageApiUrl(scoreId: String, pageIndex: Int): String? {
+        if (!scoreId.matches(Regex("[A-Za-z0-9_-]+")) || pageIndex < 0) return null
+        return ScoreleafConstants.MUSESCORE_SANDBOX_PAGE_TEMPLATE
+            .replace("{scoreId}", scoreId)
+            .replace("{pageIndex}", pageIndex.toString())
+    }
+
+    fun mediaUrl(responseJson: String): String? = runCatching {
+        val value = JSONObject(responseJson).optJSONObject("info")?.optString("url").orEmpty()
+        trustedMediaUrl(value)
+    }.getOrNull()
+
+    fun trustedMediaUrl(value: String): String? = runCatching {
+        val uri = URI(value)
+        val host = uri.host?.lowercase() ?: return@runCatching null
+        if (!uri.scheme.equals("https", true) || uri.rawUserInfo != null) return@runCatching null
+        if (host != "musescore.test" && !host.endsWith(".musescore.test")) return@runCatching null
+        value
     }.getOrNull()
 }
 
