@@ -126,4 +126,15 @@ class MusicSiteTest {
         assertEquals(null, MuseScoreSandboxPolicy.mediaUrl("""{"info":{"url":"http://cdn.musescore.test/page.png"}}"""))
         assertEquals(null, MuseScoreSandboxPolicy.mediaUrl("not json"))
     }
+
+    @Test
+    fun sandboxAuthorizationIsBoundToItsPageIndex() {
+        val tokens = mapOf(0 to "page-zero", 2 to "page-two", 9 to " ")
+        assertEquals("page-zero", MuseScoreSandboxPolicy.authorizationForPage(0, tokens))
+        assertEquals("page-two", MuseScoreSandboxPolicy.authorizationForPage(2, tokens))
+        assertEquals(null, MuseScoreSandboxPolicy.authorizationForPage(1, tokens))
+        assertEquals(null, MuseScoreSandboxPolicy.authorizationForPage(9, tokens))
+        assertEquals(null, MuseScoreSandboxPolicy.authorizationForPage(-1, tokens))
+    }
+
 }
