@@ -2,6 +2,7 @@ package com.scoreleaf.app.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class AnnotationEditorTest {
@@ -49,5 +50,50 @@ class AnnotationEditorTest {
         val legacy = InkStroke(0xff000000, 3f, listOf(InkPoint(0f, 0f), InkPoint(1f, 1f)))
         assertEquals(AnnotationTool.PEN, legacy.tool)
         assertEquals("default", legacy.layerId)
+    }
+
+    @Test fun lassoSelectsContainedElementsAndMovesThemWithoutLosingMetadata() {
+        val shape = InkStroke(
+            color = 0xff123456,
+            width = 5f,
+            points = listOf(InkPoint(.2f, .2f), InkPoint(.4f, .4f)),
+            tool = AnnotationTool.RECTANGLE,
+            layerId = "analysis",
+            text = "phrase",
+            pressures = listOf(.4f, .8f)
+        )
+        val outside = first.copy(points = listOf(InkPoint(.7f, .7f), InkPoint(.9f, .9f)))
+        val history = AnnotationHistory(listOf(shape, outside))
+
+        val selected = AnnotationEditor.selectInRect(history, InkPoint(.1f, .1f), InkPoint(.5f, .5f))
+        assertEquals(setOf(shape.id), selected)
+        val moved = AnnotationEditor.move(history, selected, .1f, -.1f)
+
+        assertEquals(listOf(InkPoint(.3f, .1f), InkPoint(.5f, .3f)), moved.strokes.first().points)
+        assertEquals(shape.copy(points = listOf(InkPoint(.3f, .1f), InkPoint(.5f, .3f))), moved.strokes.first())
+        assertTrue(moved.redo.isEmpty())
+    }
+
+    @Test fun lassoDeleteIsUndoableAsOneOperation() {
+        val selected = setOf(first.id, second.id)
+        val deleted = AnnotationEditor.delete(AnnotationHistory(listOf(first, second)), selected)
+        assertTrue(deleted.strokes.isEmpty())
+        assertEquals(listOf(first, second), deleted.redo)
+        assertEquals(listOf(first, second), AnnotationEditor.redoAll(deleted).strokes)
+    }
+
+    @Test fun namedLayersCanBeCreatedRenamedHiddenAndLocked() {
+        val initial = listOf(AnnotationLayer.DEFAULT)
+        val added = AnnotationLayers.add(initial, "Teacher notes")
+        assertEquals(2, added.size)
+        val id = added.last().id
+        val renamed = AnnotationLayers.rename(added, id, "Bowings")
+        val hidden = AnnotationLayers.setVisible(renamed, id, false)
+        val locked = AnnotationLayers.setLocked(hidden, id, true)
+
+        assertEquals("Bowings", locked.last().name)
+        assertFalse(locked.last().visible)
+        assertTrue(locked.last().locked)
+        assertEquals(initial, AnnotationLayers.add(initial, "   "))
     }
 }
