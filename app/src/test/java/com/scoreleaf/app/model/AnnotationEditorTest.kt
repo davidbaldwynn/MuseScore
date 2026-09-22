@@ -52,6 +52,11 @@ class AnnotationEditorTest {
         assertEquals("default", legacy.layerId)
     }
 
+    @Test fun androidAndLegacyComposeColorsResolveToArgb() {
+        assertEquals(0xffff0000.toInt(), annotationArgb(-65536L))
+        assertEquals(0xffff0000.toInt(), annotationArgb(0xffff000000000000UL.toLong()))
+    }
+
     @Test fun lassoSelectsContainedElementsAndMovesThemWithoutLosingMetadata() {
         val shape = InkStroke(
             color = 0xff123456,

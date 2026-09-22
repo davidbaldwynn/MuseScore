@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.geometry.Offset
 import androidx.test.core.app.ApplicationProvider
 import com.scoreleaf.app.data.ScoreRepository
 import kotlinx.coroutines.runBlocking
@@ -192,6 +193,8 @@ class ScoreleafAppTest {
     fun annotatedExportIsAValidPdfWithFlattenedInk() = runBlocking {
         val repo = ScoreRepository(context)
         val score = repo.importPdf(Uri.fromFile(createPdf("export.pdf", 2)), "Export score.pdf")
+        val hiddenLayer = com.scoreleaf.app.model.AnnotationLayer(name = "Hidden", visible = false)
+        repo.saveLayers(score.id, listOf(com.scoreleaf.app.model.AnnotationLayer.DEFAULT, hiddenLayer))
         repo.saveStrokes(
             score.id,
             0,
@@ -203,6 +206,31 @@ class ScoreleafAppTest {
                         com.scoreleaf.app.model.InkPoint(.1f, .5f),
                         com.scoreleaf.app.model.InkPoint(.9f, .5f)
                     )
+                ),
+                com.scoreleaf.app.model.InkStroke(
+                    color = Color.BLUE.toLong(),
+                    width = 14f,
+                    points = listOf(
+                        com.scoreleaf.app.model.InkPoint(.2f, .2f),
+                        com.scoreleaf.app.model.InkPoint(.8f, .8f)
+                    ),
+                    tool = com.scoreleaf.app.model.AnnotationTool.RECTANGLE
+                ),
+                com.scoreleaf.app.model.InkStroke(
+                    color = Color.BLACK.toLong(),
+                    width = 8f,
+                    points = listOf(com.scoreleaf.app.model.InkPoint(.3f, .3f)),
+                    tool = com.scoreleaf.app.model.AnnotationTool.TEXT,
+                    text = "Coda"
+                ),
+                com.scoreleaf.app.model.InkStroke(
+                    color = Color.GREEN.toLong(),
+                    width = 30f,
+                    points = listOf(
+                        com.scoreleaf.app.model.InkPoint(.1f, .1f),
+                        com.scoreleaf.app.model.InkPoint(.9f, .9f)
+                    ),
+                    layerId = hiddenLayer.id
                 )
             )
         )
@@ -220,6 +248,20 @@ class ScoreleafAppTest {
                     (60..540 step 20).any { x -> Color.red(bitmap.getPixel(x, y)) > 180 && Color.green(bitmap.getPixel(x, y)) < 100 }
                 }
                 assertTrue("Expected flattened red annotation pixels", coloredPixels > 0)
+                val bluePixels = (60..540 step 10).sumOf { y ->
+                    (30..570 step 10).count { x ->
+                        val pixel = bitmap.getPixel(x, y)
+                        Color.blue(pixel) > 150 && Color.red(pixel) < 120
+                    }
+                }
+                val greenPixels = (60..540 step 10).sumOf { y ->
+                    (30..570 step 10).count { x ->
+                        val pixel = bitmap.getPixel(x, y)
+                        Color.green(pixel) > 150 && Color.red(pixel) < 120 && Color.blue(pixel) < 120
+                    }
+                }
+                assertTrue("Expected flattened blue rectangle pixels", bluePixels > 0)
+                assertEquals("Hidden layers must not be flattened", 0, greenPixels)
             }
         }
         descriptor.close()
@@ -251,6 +293,63 @@ class ScoreleafAppTest {
         assertEquals("Verse 2", restored.text)
         assertEquals(listOf(.25f, .75f), restored.pressures)
         assertEquals(layer, reopened.layers(score.id).last())
+    }
+
+    @Test
+    fun advancedAnnotationFlowCreatesShapesTextStampsLayersAndLassoSelection() {
+        runBlocking {
+            ScoreRepository(context).importPdf(
+                Uri.fromFile(createPdf("advanced-annotations.pdf", 1)),
+                "Advanced annotations.pdf"
+            )
+        }
+        launchApp()
+
+        compose.onNodeWithText("Advanced annotations").performClick()
+        compose.waitUntilAtLeastOneExists(hasText("1 / 1"), timeoutMillis = 15_000)
+        compose.onNodeWithContentDescription("Annotate").performClick()
+
+        compose.onNodeWithContentDescription("Annotation tools").performClick()
+        compose.onNodeWithText("Rectangle").performClick()
+        compose.onNodeWithTag("ink-layer").performTouchInput {
+            swipe(Offset(width * .25f, height * .25f), Offset(width * .75f, height * .7f), 500)
+        }
+
+        compose.onNodeWithContentDescription("Annotation tools").performClick()
+        compose.onNodeWithText("Text").performClick()
+        compose.onNodeWithText("Rehearsal note").performTextReplacement("Verse 2")
+        compose.onNodeWithText("Add").performClick()
+
+        compose.onNodeWithContentDescription("Annotation tools").performClick()
+        compose.onNodeWithText("Music stamp").performClick()
+        compose.onNodeWithText("♩").performClick()
+
+        compose.onNodeWithContentDescription("Annotation layers").performClick()
+        compose.onNodeWithText("New layer name").performTextReplacement("Teacher notes")
+        compose.onNodeWithContentDescription("Add layer").performClick()
+        compose.onNodeWithText("Teacher notes").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Lock Teacher notes").performClick()
+        compose.onNodeWithContentDescription("Unlock Teacher notes").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Hide Teacher notes").performClick()
+        compose.onNodeWithContentDescription("Show Teacher notes").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Rename Teacher notes").performClick()
+        compose.onNodeWithText("Rename layer").performTextReplacement("Bowings")
+        compose.onNodeWithContentDescription("Save layer name").performClick()
+        compose.onNodeWithText("Bowings").assertIsDisplayed()
+        compose.onNodeWithText("Done").performClick()
+
+        compose.onNodeWithContentDescription("Annotation layers").performClick()
+        compose.onNodeWithContentDescription("Select Annotations layer").performClick()
+        compose.onNodeWithText("Done").performClick()
+        compose.onNodeWithContentDescription("Annotation tools").performClick()
+        compose.onNodeWithText("Lasso selection").performClick()
+        compose.onNodeWithTag("ink-layer").performTouchInput {
+            swipe(Offset(width * .1f, height * .1f), Offset(width * .9f, height * .9f), 500)
+        }
+        compose.onNodeWithContentDescription("Annotation tools").performClick()
+        compose.onNode(hasText("selected", substring = true)).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Move selection right").performClick()
+        compose.onNodeWithContentDescription("Delete selection").assertIsDisplayed()
     }
 
     private fun launchApp() {

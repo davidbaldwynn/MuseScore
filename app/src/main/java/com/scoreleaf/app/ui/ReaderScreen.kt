@@ -20,12 +20,17 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clipToBounds
@@ -64,6 +69,16 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
     }
     var annotationTool by remember { mutableStateOf(AnnotationTool.PEN) }
     var activePoints by remember { mutableStateOf<List<InkPoint>>(emptyList()) }
+    var activePressures by remember { mutableStateOf<List<Float>>(emptyList()) }
+    var annotationLayers by remember(score.id) { mutableStateOf(repo.layers(score.id)) }
+    var activeLayerId by remember(score.id) { mutableStateOf(AnnotationLayer.DEFAULT.id) }
+    var selectedAnnotationIds by remember(page) { mutableStateOf<Set<String>>(emptySet()) }
+    var penColor by remember { mutableLongStateOf(android.graphics.Color.RED.toLong()) }
+    var penWidth by remember { mutableFloatStateOf(3f) }
+    var showAnnotationTools by remember { mutableStateOf(false) }
+    var showTextDialog by remember { mutableStateOf(false) }
+    var showStampDialog by remember { mutableStateOf(false) }
+    var showLayersDialog by remember { mutableStateOf(false) }
     var activePanel by remember { mutableStateOf<ReaderPanel?>(null) }
     val file = remember(score.id) { repo.scoreFile(score) }
     val pageCache = remember(score.id) { PageRenderCache<Bitmap>(6) }
@@ -148,6 +163,12 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                 IconButton(onClick = { annotationTool = AnnotationTool.ERASER }) {
                     Icon(Icons.Default.AutoFixOff, "Eraser", tint = if (annotationTool == AnnotationTool.ERASER) MaterialTheme.colorScheme.primary else LocalContentColor.current)
                 }
+                IconButton(onClick = { showAnnotationTools = true }) {
+                    Icon(Icons.Default.Construction, "Annotation tools")
+                }
+                IconButton(onClick = { showLayersDialog = true }) {
+                    Icon(Icons.Default.Layers, "Annotation layers")
+                }
                 IconButton(onClick = {
                     annotationHistory = AnnotationEditor.undo(annotationHistory)
                     repo.saveStrokes(score.id, page, annotationHistory.strokes)
@@ -155,7 +176,7 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                 IconButton(onClick = {
                     annotationHistory = AnnotationEditor.redo(annotationHistory)
                     repo.saveStrokes(score.id, page, annotationHistory.strokes)
-                }, enabled = annotationHistory.redo.isNotEmpty()) { Icon(Icons.Default.Redo, "Redo") }
+                }, enabled = annotationHistory.redo.isNotEmpty() || annotationHistory.redoSnapshots.isNotEmpty()) { Icon(Icons.Default.Redo, "Redo") }
             }
             IconButton(
                 onClick = { movePage(1) },
@@ -194,24 +215,34 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                     val displayModifier = if (ratio > boxRatio) Modifier.fillMaxWidth().aspectRatio(ratio) else Modifier.fillMaxHeight().aspectRatio(ratio)
                     Box(displayModifier) {
                         Image(bmp.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = fitMode.contentScale())
-                        InkLayer(annotationHistory.strokes, activePoints, inkMode, annotationTool,
-                            onPoints = { activePoints = it },
-                            onCommit = { points ->
+                        val visibleLayerIds = annotationLayers.filter(AnnotationLayer::visible).mapTo(hashSetOf(), AnnotationLayer::id)
+                        InkLayer(annotationHistory.strokes.filter { it.layerId in visibleLayerIds }, activePoints, activePressures, selectedAnnotationIds, inkMode, annotationTool, penColor, penWidth,
+                            onPoints = { points, pressures -> activePoints = points; activePressures = pressures },
+                            onCommit = { points, pressures ->
+                                val activeLayer = annotationLayers.firstOrNull { it.id == activeLayerId } ?: AnnotationLayer.DEFAULT
                                 annotationHistory = when {
+                                    activeLayer.locked -> annotationHistory
                                     annotationTool == AnnotationTool.ERASER && points.isNotEmpty() ->
                                         AnnotationEditor.eraseNearest(annotationHistory, points.last(), .04f)
+                                    annotationTool == AnnotationTool.LASSO && points.size > 1 -> {
+                                        selectedAnnotationIds = AnnotationEditor.selectInRect(annotationHistory, points.first(), points.last())
+                                        annotationHistory
+                                    }
                                     points.size > 1 -> AnnotationEditor.add(
                                         annotationHistory,
                                         InkStroke(
-                                            color = if (annotationTool == AnnotationTool.HIGHLIGHTER) Color(0x66FFD54F).value.toLong() else Color(0xFFD52B1E).value.toLong(),
-                                            width = if (annotationTool == AnnotationTool.HIGHLIGHTER) 18f else 3f,
-                                            points = points,
-                                            tool = annotationTool
+                                            color = if (annotationTool == AnnotationTool.HIGHLIGHTER) 0x66FFD54FL else penColor,
+                                            width = if (annotationTool == AnnotationTool.HIGHLIGHTER) 18f else penWidth,
+                                            points = if (annotationTool in setOf(AnnotationTool.LINE, AnnotationTool.RECTANGLE, AnnotationTool.ELLIPSE)) listOf(points.first(), points.last()) else points,
+                                            tool = annotationTool,
+                                            layerId = activeLayerId,
+                                            pressures = pressures
                                         )
                                     )
                                     else -> annotationHistory
                                 }
                                 activePoints = emptyList()
+                                activePressures = emptyList()
                                 repo.saveStrokes(score.id, page, annotationHistory.strokes)
                             })
                     }
@@ -262,6 +293,70 @@ fun ReaderScreen(repo: ScoreRepository, score: Score, onBack: () -> Unit) {
                 onClose = { activePanel = null })
         }
     }
+
+    if (showAnnotationTools) AnnotationToolsDialog(
+        selectedTool = annotationTool,
+        selectedCount = selectedAnnotationIds.size,
+        onTool = { tool ->
+            annotationTool = tool
+            showAnnotationTools = false
+            if (tool == AnnotationTool.TEXT) showTextDialog = true
+            if (tool == AnnotationTool.STAMP) showStampDialog = true
+        },
+        onPreset = { color, width -> penColor = color; penWidth = width; annotationTool = AnnotationTool.PEN },
+        onMoveSelection = { dx, dy ->
+            annotationHistory = AnnotationEditor.move(annotationHistory, selectedAnnotationIds, dx, dy)
+            repo.saveStrokes(score.id, page, annotationHistory.strokes)
+        },
+        onDeleteSelection = {
+            annotationHistory = AnnotationEditor.delete(annotationHistory, selectedAnnotationIds)
+            selectedAnnotationIds = emptySet()
+            repo.saveStrokes(score.id, page, annotationHistory.strokes)
+        },
+        onDismiss = { showAnnotationTools = false }
+    )
+
+    if (showTextDialog) AnnotationTextDialog(
+        title = "Add text",
+        placeholder = "Rehearsal note",
+        onDismiss = { showTextDialog = false; annotationTool = AnnotationTool.PEN },
+        onAdd = { value ->
+            val layer = annotationLayers.firstOrNull { it.id == activeLayerId }
+            if (layer?.locked != true && value.isNotBlank()) {
+                annotationHistory = AnnotationEditor.add(annotationHistory, InkStroke(
+                    color = penColor, width = 5f, points = listOf(InkPoint(.5f, .5f)),
+                    tool = AnnotationTool.TEXT, layerId = activeLayerId, text = value.trim()
+                ))
+                repo.saveStrokes(score.id, page, annotationHistory.strokes)
+            }
+            showTextDialog = false
+            annotationTool = AnnotationTool.PEN
+        }
+    )
+
+    if (showStampDialog) StampDialog(
+        onDismiss = { showStampDialog = false; annotationTool = AnnotationTool.PEN },
+        onStamp = { symbol ->
+            val layer = annotationLayers.firstOrNull { it.id == activeLayerId }
+            if (layer?.locked != true) {
+                annotationHistory = AnnotationEditor.add(annotationHistory, InkStroke(
+                    color = penColor, width = 8f, points = listOf(InkPoint(.5f, .5f)),
+                    tool = AnnotationTool.STAMP, layerId = activeLayerId, text = symbol
+                ))
+                repo.saveStrokes(score.id, page, annotationHistory.strokes)
+            }
+            showStampDialog = false
+            annotationTool = AnnotationTool.PEN
+        }
+    )
+
+    if (showLayersDialog) AnnotationLayersDialog(
+        layers = annotationLayers,
+        activeLayerId = activeLayerId,
+        onSelect = { activeLayerId = it },
+        onChange = { updated -> annotationLayers = updated; repo.saveLayers(score.id, updated) },
+        onDismiss = { showLayersDialog = false }
+    )
 }
 
 private enum class ReaderPanel { BOOKMARKS, SEARCH, METRONOME, PITCH, TOOLS }
@@ -361,35 +456,232 @@ private fun ReaderPanelContent(
 }
 
 @Composable
+private fun AnnotationToolsDialog(
+    selectedTool: AnnotationTool,
+    selectedCount: Int,
+    onTool: (AnnotationTool) -> Unit,
+    onPreset: (Long, Float) -> Unit,
+    onMoveSelection: (Float, Float) -> Unit,
+    onDeleteSelection: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Annotation tools") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Draw and place", style = MaterialTheme.typography.titleSmall)
+                listOf(
+                    AnnotationTool.LINE to "Line",
+                    AnnotationTool.RECTANGLE to "Rectangle",
+                    AnnotationTool.ELLIPSE to "Ellipse",
+                    AnnotationTool.TEXT to "Text",
+                    AnnotationTool.STAMP to "Music stamp",
+                    AnnotationTool.LASSO to "Lasso selection"
+                ).chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { (tool, label) ->
+                            FilterChip(selected = selectedTool == tool, onClick = { onTool(tool) }, label = { Text(label) })
+                        }
+                    }
+                }
+                Text("Pen presets", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AssistChip(onClick = { onPreset(android.graphics.Color.RED.toLong(), 3f) }, label = { Text("Red fine") })
+                    AssistChip(onClick = { onPreset(android.graphics.Color.BLUE.toLong(), 6f) }, label = { Text("Blue medium") })
+                    AssistChip(onClick = { onPreset(android.graphics.Color.BLACK.toLong(), 10f) }, label = { Text("Black bold") })
+                }
+                if (selectedCount > 0) {
+                    Text("$selectedCount selected", style = MaterialTheme.typography.titleSmall)
+                    Row {
+                        IconButton(onClick = { onMoveSelection(-.02f, 0f) }) { Icon(Icons.Default.ArrowBack, "Move selection left") }
+                        IconButton(onClick = { onMoveSelection(.02f, 0f) }) { Icon(Icons.Default.ArrowForward, "Move selection right") }
+                        IconButton(onClick = { onMoveSelection(0f, -.02f) }) { Icon(Icons.Default.ArrowUpward, "Move selection up") }
+                        IconButton(onClick = { onMoveSelection(0f, .02f) }) { Icon(Icons.Default.ArrowDownward, "Move selection down") }
+                        IconButton(onClick = onDeleteSelection) { Icon(Icons.Default.Delete, "Delete selection") }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+    )
+}
+
+@Composable
+private fun AnnotationTextDialog(title: String, placeholder: String, onDismiss: () -> Unit, onAdd: (String) -> Unit) {
+    var value by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { OutlinedTextField(value, { value = it }, placeholder = { Text(placeholder) }, singleLine = false) },
+        confirmButton = { TextButton(onClick = { onAdd(value) }, enabled = value.isNotBlank()) { Text("Add") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun StampDialog(onDismiss: () -> Unit, onStamp: (String) -> Unit) {
+    val stamps = listOf("♩", "♪", "♫", "♭", "♯", "𝄐")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Music stamp") },
+        text = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                stamps.forEach { stamp -> FilledTonalIconButton(onClick = { onStamp(stamp) }) { Text(stamp) } }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun AnnotationLayersDialog(
+    layers: List<AnnotationLayer>,
+    activeLayerId: String,
+    onSelect: (String) -> Unit,
+    onChange: (List<AnnotationLayer>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newName by remember { mutableStateOf("") }
+    var renameLayerId by remember { mutableStateOf<String?>(null) }
+    var renameValue by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Annotation layers") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                layers.forEach { layer ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onSelect(layer.id) }.semantics {
+                            contentDescription = "Select ${layer.name} layer"
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = activeLayerId == layer.id, onClick = { onSelect(layer.id) })
+                        Text(layer.name, Modifier.weight(1f))
+                        IconButton(onClick = {
+                            renameLayerId = layer.id
+                            renameValue = layer.name
+                        }) { Icon(Icons.Default.Edit, "Rename ${layer.name}") }
+                        IconToggleButton(checked = layer.visible, onCheckedChange = {
+                            onChange(AnnotationLayers.setVisible(layers, layer.id, it))
+                        }) { Icon(if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff, "${if (layer.visible) "Hide" else "Show"} ${layer.name}") }
+                        IconToggleButton(checked = layer.locked, onCheckedChange = {
+                            onChange(AnnotationLayers.setLocked(layers, layer.id, it))
+                        }) { Icon(if (layer.locked) Icons.Default.Lock else Icons.Default.LockOpen, "${if (layer.locked) "Unlock" else "Lock"} ${layer.name}") }
+                    }
+                }
+                if (renameLayerId != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(renameValue, { renameValue = it }, Modifier.weight(1f), label = { Text("Rename layer") }, singleLine = true)
+                        IconButton(onClick = {
+                            onChange(AnnotationLayers.rename(layers, renameLayerId!!, renameValue))
+                            renameLayerId = null
+                            renameValue = ""
+                        }, enabled = renameValue.isNotBlank()) { Icon(Icons.Default.Check, "Save layer name") }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(newName, { newName = it }, Modifier.weight(1f), label = { Text("New layer name") }, singleLine = true)
+                    IconButton(onClick = {
+                        val updated = AnnotationLayers.add(layers, newName)
+                        onChange(updated)
+                        updated.lastOrNull()?.let { onSelect(it.id) }
+                        newName = ""
+                    }, enabled = newName.isNotBlank()) { Icon(Icons.Default.Add, "Add layer") }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+    )
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
 private fun InkLayer(
     strokes: List<InkStroke>,
     active: List<InkPoint>,
+    activePressures: List<Float>,
+    selectedIds: Set<String>,
     enabled: Boolean,
     tool: AnnotationTool,
-    onPoints: (List<InkPoint>) -> Unit,
-    onCommit: (List<InkPoint>) -> Unit
+    penColor: Long,
+    penWidth: Float,
+    onPoints: (List<InkPoint>, List<Float>) -> Unit,
+    onCommit: (List<InkPoint>, List<Float>) -> Unit
 ) {
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
-    Canvas(Modifier.fillMaxSize().testTag("ink-layer").onSizeChanged { layerSize = it }.then(if (enabled) Modifier.pointerInput(layerSize) {
+    val latestPressure = remember { floatArrayOf(1f) }
+    Canvas(Modifier.fillMaxSize().testTag("ink-layer").onSizeChanged { layerSize = it }
+        .then(if (enabled) Modifier.pointerInteropFilter { event ->
+            latestPressure[0] = event.getPressure(event.actionIndex).coerceIn(.2f, 1.5f)
+            false
+        } else Modifier)
+        .then(if (enabled) Modifier.pointerInput(layerSize, tool) {
         var gesturePoints = emptyList<InkPoint>()
+        var gesturePressures = emptyList<Float>()
         detectDragGestures(onDragStart = { p ->
-            gesturePoints = listOf(InkPoint(p.x / size.width, p.y / size.height)); onPoints(gesturePoints)
-        }, onDragEnd = { onCommit(gesturePoints); gesturePoints = emptyList() }) { change, _ ->
+            gesturePoints = listOf(InkPoint(p.x / size.width, p.y / size.height))
+            gesturePressures = listOf(latestPressure[0])
+            onPoints(gesturePoints, gesturePressures)
+        }, onDragEnd = { onCommit(gesturePoints, gesturePressures); gesturePoints = emptyList(); gesturePressures = emptyList() }) { change, _ ->
             change.consume()
             gesturePoints = gesturePoints + InkPoint(change.position.x / size.width, change.position.y / size.height)
-            onPoints(gesturePoints)
+            gesturePressures = gesturePressures + latestPressure[0]
+            onPoints(gesturePoints, gesturePressures)
         }
     } else Modifier)) {
-        fun draw(points: List<InkPoint>, color: Color, width: Float) {
-            points.zipWithNext().forEach { (a, b) -> drawLine(color, Offset(a.x * size.width, a.y * size.height), Offset(b.x * size.width, b.y * size.height), width, cap = StrokeCap.Round) }
+        fun drawInk(points: List<InkPoint>, pressures: List<Float>, color: Color, width: Float) {
+            points.zipWithNext().forEachIndexed { index, (a, b) ->
+                val pressure = pressures.getOrNull(index)?.coerceIn(.2f, 1.5f) ?: 1f
+                drawLine(color, Offset(a.x * size.width, a.y * size.height), Offset(b.x * size.width, b.y * size.height), width * pressure, cap = StrokeCap.Round)
+            }
         }
-        strokes.forEach { draw(it.points, Color(it.color.toULong()), it.width) }
-        if (tool != AnnotationTool.ERASER) {
-            draw(
-                active,
-                if (tool == AnnotationTool.HIGHLIGHTER) Color(0x66FFD54F) else Color(0xFFD52B1E),
-                if (tool == AnnotationTool.HIGHLIGHTER) 18f else 3f
+        fun drawElement(element: InkStroke) {
+            val color = Color(annotationArgb(element.color))
+            val first = element.points.firstOrNull() ?: return
+            val last = element.points.lastOrNull() ?: first
+            val start = Offset(first.x * size.width, first.y * size.height)
+            val end = Offset(last.x * size.width, last.y * size.height)
+            val topLeft = Offset(minOf(start.x, end.x), minOf(start.y, end.y))
+            val bounds = Size(kotlin.math.abs(end.x - start.x), kotlin.math.abs(end.y - start.y))
+            when (element.tool) {
+                AnnotationTool.PEN, AnnotationTool.HIGHLIGHTER -> drawInk(element.points, element.pressures, color, element.width)
+                AnnotationTool.LINE -> drawLine(color, start, end, element.width, cap = StrokeCap.Round)
+                AnnotationTool.RECTANGLE -> drawRect(color, topLeft, bounds, style = Stroke(element.width))
+                AnnotationTool.ELLIPSE -> drawOval(color, topLeft, bounds, style = Stroke(element.width))
+                AnnotationTool.TEXT, AnnotationTool.STAMP -> drawContext.canvas.nativeCanvas.drawText(
+                    element.text,
+                    start.x,
+                    start.y,
+                    android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        this.color = annotationArgb(element.color)
+                        textSize = element.width * 5f
+                    }
+                )
+                AnnotationTool.ERASER, AnnotationTool.LASSO -> Unit
+            }
+            if (element.id in selectedIds) {
+                val padding = 10f
+                drawRect(
+                    Color(0xFF2F80ED),
+                    Offset(topLeft.x - padding, topLeft.y - padding),
+                    Size(bounds.width.coerceAtLeast(20f) + padding * 2, bounds.height.coerceAtLeast(20f) + padding * 2),
+                    style = Stroke(2f)
+                )
+            }
+        }
+        strokes.forEach(::drawElement)
+        if (tool !in setOf(AnnotationTool.ERASER, AnnotationTool.TEXT, AnnotationTool.STAMP)) {
+            val preview = InkStroke(
+                color = if (tool == AnnotationTool.HIGHLIGHTER) 0x66FFD54FL else if (tool == AnnotationTool.LASSO) android.graphics.Color.BLUE.toLong() else penColor,
+                width = if (tool == AnnotationTool.HIGHLIGHTER) 18f else penWidth,
+                points = if (tool in setOf(AnnotationTool.LINE, AnnotationTool.RECTANGLE, AnnotationTool.ELLIPSE, AnnotationTool.LASSO) && active.size > 1) listOf(active.first(), active.last()) else active,
+                tool = if (tool == AnnotationTool.LASSO) AnnotationTool.RECTANGLE else tool,
+                pressures = activePressures
             )
+            drawElement(preview)
         }
     }
 }

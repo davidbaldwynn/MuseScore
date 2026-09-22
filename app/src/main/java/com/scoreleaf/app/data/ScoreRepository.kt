@@ -158,21 +158,51 @@ class ScoreRepository(private val context: Context) {
                         val pageInfo = PdfDocument.PageInfo.Builder(sourcePage.width, sourcePage.height, index + 1).create()
                         val outputPage = document.startPage(pageInfo)
                         outputPage.canvas.drawBitmap(bitmap, 0f, 0f, null)
-                        strokes(score.id, index).forEach { stroke ->
+                        val visibleLayers = layers(score.id).filter(AnnotationLayer::visible).mapTo(hashSetOf(), AnnotationLayer::id)
+                        strokes(score.id, index).filter { it.layerId in visibleLayers }.forEach { stroke ->
                             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                color = stroke.color.toInt()
+                                color = annotationArgb(stroke.color)
                                 strokeWidth = stroke.width
                                 strokeCap = Paint.Cap.ROUND
                                 style = Paint.Style.STROKE
                             }
-                            stroke.points.zipWithNext().forEach { (start, end) ->
-                                outputPage.canvas.drawLine(
-                                    start.x * sourcePage.width,
-                                    start.y * sourcePage.height,
-                                    end.x * sourcePage.width,
-                                    end.y * sourcePage.height,
+                            val points = stroke.points
+                            when (stroke.tool) {
+                                AnnotationTool.LINE -> if (points.size >= 2) outputPage.canvas.drawLine(
+                                    points.first().x * sourcePage.width, points.first().y * sourcePage.height,
+                                    points.last().x * sourcePage.width, points.last().y * sourcePage.height, paint
+                                )
+                                AnnotationTool.RECTANGLE -> if (points.size >= 2) outputPage.canvas.drawRect(
+                                    minOf(points.first().x, points.last().x) * sourcePage.width,
+                                    minOf(points.first().y, points.last().y) * sourcePage.height,
+                                    maxOf(points.first().x, points.last().x) * sourcePage.width,
+                                    maxOf(points.first().y, points.last().y) * sourcePage.height,
                                     paint
                                 )
+                                AnnotationTool.ELLIPSE -> if (points.size >= 2) outputPage.canvas.drawOval(
+                                    minOf(points.first().x, points.last().x) * sourcePage.width,
+                                    minOf(points.first().y, points.last().y) * sourcePage.height,
+                                    maxOf(points.first().x, points.last().x) * sourcePage.width,
+                                    maxOf(points.first().y, points.last().y) * sourcePage.height,
+                                    paint
+                                )
+                                AnnotationTool.TEXT, AnnotationTool.STAMP -> points.firstOrNull()?.let { anchor ->
+                                    paint.style = Paint.Style.FILL
+                                    paint.textSize = stroke.width * 5f
+                                    outputPage.canvas.drawText(stroke.text, anchor.x * sourcePage.width, anchor.y * sourcePage.height, paint)
+                                }
+                                AnnotationTool.PEN, AnnotationTool.HIGHLIGHTER -> points.zipWithNext().forEachIndexed { segment, (start, end) ->
+                                    val pressure = stroke.pressures.getOrNull(segment)?.coerceIn(.2f, 1.5f) ?: 1f
+                                    paint.strokeWidth = stroke.width * pressure
+                                    outputPage.canvas.drawLine(
+                                        start.x * sourcePage.width,
+                                        start.y * sourcePage.height,
+                                        end.x * sourcePage.width,
+                                        end.y * sourcePage.height,
+                                        paint
+                                    )
+                                }
+                                AnnotationTool.ERASER, AnnotationTool.LASSO -> Unit
                             }
                         }
                         document.finishPage(outputPage)
@@ -202,7 +232,12 @@ class ScoreRepository(private val context: Context) {
                 tool = runCatching {
                     AnnotationTool.valueOf(s.optString("tool", AnnotationTool.PEN.name))
                 }.getOrDefault(AnnotationTool.PEN),
-                layerId = s.optString("layerId", "default")
+                layerId = s.optString("layerId", "default"),
+                id = s.optString("id").ifBlank { java.util.UUID.randomUUID().toString() },
+                text = s.optString("text"),
+                pressures = s.optJSONArray("pressures")?.let { a ->
+                    (0 until a.length()).map { a.getDouble(it).toFloat() }
+                } ?: emptyList()
             )
         }
     }
@@ -215,6 +250,39 @@ class ScoreRepository(private val context: Context) {
                 put("points", JSONArray(stroke.points.map { JSONArray(listOf(it.x, it.y)) }))
                 put("tool", stroke.tool.name)
                 put("layerId", stroke.layerId)
+                put("id", stroke.id)
+                put("text", stroke.text)
+                put("pressures", JSONArray(stroke.pressures))
+            }
+        }))
+        File(context.filesDir, "ink_${scoreId}.json").writeText(root.toString())
+    }
+
+    fun layers(scoreId: String): List<AnnotationLayer> {
+        val array = inkRoot(scoreId).optJSONArray("_layers") ?: return listOf(AnnotationLayer.DEFAULT)
+        val restored = (0 until array.length()).mapNotNull { index ->
+            runCatching {
+                val item = array.getJSONObject(index)
+                AnnotationLayer(
+                    id = item.getString("id"),
+                    name = item.getString("name"),
+                    visible = item.optBoolean("visible", true),
+                    locked = item.optBoolean("locked", false)
+                )
+            }.getOrNull()
+        }
+        return (if (restored.any { it.id == AnnotationLayer.DEFAULT.id }) restored else listOf(AnnotationLayer.DEFAULT) + restored)
+            .ifEmpty { listOf(AnnotationLayer.DEFAULT) }
+    }
+
+    fun saveLayers(scoreId: String, layers: List<AnnotationLayer>) {
+        val root = inkRoot(scoreId)
+        root.put("_layers", JSONArray(layers.map { layer ->
+            JSONObject().apply {
+                put("id", layer.id)
+                put("name", layer.name)
+                put("visible", layer.visible)
+                put("locked", layer.locked)
             }
         }))
         File(context.filesDir, "ink_${scoreId}.json").writeText(root.toString())
