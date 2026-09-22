@@ -56,6 +56,24 @@ class ScoreleafAppTest {
     }
 
     @Test
+    fun musicSiteBrowserFlowListsProvidersAndOpensDedicatedBrowser() {
+        launchApp()
+
+        compose.onNodeWithContentDescription("Browse music sites").performClick()
+        compose.onNodeWithText("Import from a music site").assertIsDisplayed()
+        compose.onNodeWithText("Music-Scores").assertIsDisplayed()
+        compose.onNodeWithText("MuseScore").assertIsDisplayed()
+
+        compose.onNodeWithText("Music-Scores").performClick()
+        compose.onNodeWithText("Music-Scores browser").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Browser back").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Browser forward").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Reload page").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Close browser").performClick()
+        compose.onNodeWithText("Import from a music site").assertIsDisplayed()
+    }
+
+    @Test
     fun importedPdfOpensTurnsBookmarksAnnotatesAndCreatesSetlist() {
         runBlocking {
             ScoreRepository(context).importPdf(
