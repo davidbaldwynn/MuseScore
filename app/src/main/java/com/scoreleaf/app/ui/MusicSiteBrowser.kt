@@ -50,7 +50,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.scoreleaf.app.BuildConfig
 import com.scoreleaf.app.data.ScoreRepository
 import com.scoreleaf.app.data.MuseScoreSandboxImporter
 import com.scoreleaf.app.model.MusicSite
@@ -79,7 +78,7 @@ fun MusicSitePicker(onBack: () -> Unit, onOpen: (MusicSite) -> Unit) {
                 style = MaterialTheme.typography.bodyMedium
             )
             MusicSite.entries.filter { site ->
-                site != MusicSite.MUSESCORE_SANDBOX || MuseScoreSandboxPolicy.isVisible(BuildConfig.DEBUG)
+                site != MusicSite.MUSESCORE_SANDBOX || MuseScoreSandboxPolicy.isVisible(isDebuggable = false)
             }.forEach { site ->
                 ListItem(
                     headlineContent = { Text(site.label) },
