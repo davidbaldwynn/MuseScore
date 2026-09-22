@@ -1,7 +1,6 @@
 package com.scoreleaf.app.ui
 
 import android.annotation.SuppressLint
-import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
@@ -49,9 +48,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.scoreleaf.app.BuildConfig
 import com.scoreleaf.app.data.ScoreRepository
 import com.scoreleaf.app.data.MuseScoreSandboxImporter
 import com.scoreleaf.app.model.MusicSite
@@ -65,8 +64,6 @@ import org.json.JSONTokener
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MusicSitePicker(onBack: () -> Unit, onOpen: (MusicSite) -> Unit) {
-    val context = LocalContext.current
-    val isDebuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("Import from a music site") },
@@ -82,7 +79,7 @@ fun MusicSitePicker(onBack: () -> Unit, onOpen: (MusicSite) -> Unit) {
                 style = MaterialTheme.typography.bodyMedium
             )
             MusicSite.entries.filter { site ->
-                site != MusicSite.MUSESCORE_SANDBOX || (isDebuggable && MuseScoreSandboxPolicy.isConfigured())
+                site != MusicSite.MUSESCORE_SANDBOX || MuseScoreSandboxPolicy.isVisible(BuildConfig.DEBUG)
             }.forEach { site ->
                 ListItem(
                     headlineContent = { Text(site.label) },

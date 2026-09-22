@@ -82,6 +82,12 @@ object MuseScoreSandboxPolicy {
             config.pdfExportTemplate.contains("{scoreId}")
     }.getOrDefault(false)
 
+    @Suppress("UNUSED_PARAMETER")
+    fun isVisible(
+        isDebuggable: Boolean,
+        config: MuseScoreSandboxConfig = MuseScoreSandboxConfig()
+    ): Boolean = isConfigured(config)
+
     fun exportPdfUrl(
         pageUrl: String,
         config: MuseScoreSandboxConfig = MuseScoreSandboxConfig()

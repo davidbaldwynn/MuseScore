@@ -14,7 +14,7 @@ class MuseScoreSandboxUiTest {
     val compose = createComposeRule()
 
     @Test
-    fun configuredDebugSandboxAppearsAndCanBeSelected() {
+    fun configuredSandboxAppearsAndCanBeSelected() {
         var selected: MusicSite? = null
         compose.setContent {
             ScoreleafTheme {
