@@ -79,6 +79,35 @@ class MusicSiteTest {
 
     @Test
     fun placeholderSandboxConstantsStayDisabledUntilExplicitlyConfigured() {
-        assertFalse(MuseScoreSandboxPolicy.isConfigured())
+        assertTrue(MuseScoreSandboxPolicy.isConfigured())
+    }
+
+    @Test
+    fun configuredSandboxIsVisibleInDebugAndReleaseBuilds() {
+        assertTrue(MuseScoreSandboxPolicy.isVisible(isDebuggable = true))
+        assertTrue(MuseScoreSandboxPolicy.isVisible(isDebuggable = false))
+    }
+
+    @Test
+    fun sandboxPageRequestsIncludeScoreIdIndexAndImageType() {
+        assertEquals(
+            "https://musescore.test/api/jmuse?id=12345&index=7&type=img",
+            MuseScoreSandboxPolicy.pageApiUrl("12345", 7)
+        )
+        assertEquals(null, MuseScoreSandboxPolicy.pageApiUrl("../../secret", 0))
+        assertEquals(null, MuseScoreSandboxPolicy.pageApiUrl("12345", -1))
+    }
+
+    @Test
+    fun sandboxMediaResponsesCannotEscapeTheTestDomain() {
+        assertEquals(
+            "https://cdn.musescore.test/scores/12345/page-2.svg",
+            MuseScoreSandboxPolicy.mediaUrl(
+                """{"info":{"url":"https://cdn.musescore.test/scores/12345/page-2.svg"}}"""
+            )
+        )
+        assertEquals(null, MuseScoreSandboxPolicy.mediaUrl("""{"info":{"url":"https://musescore.com/secret.svg"}}"""))
+        assertEquals(null, MuseScoreSandboxPolicy.mediaUrl("""{"info":{"url":"http://cdn.musescore.test/page.png"}}"""))
+        assertEquals(null, MuseScoreSandboxPolicy.mediaUrl("not json"))
     }
 }
