@@ -44,7 +44,7 @@ class MuseScoreSandboxImporter(
                         "Sandbox returned an invalid first page"
                     }
                 } else {
-                    val token = authorizationByPage[index] ?: authorizationByPage.values.firstOrNull()
+                    val token = MuseScoreSandboxPolicy.authorizationForPage(index, authorizationByPage)
                         ?: error("The sandbox did not authorize page ${index + 1}")
                     val apiUrl = requireNotNull(MuseScoreSandboxPolicy.pageApiUrl(scoreId, index))
                     val response = request(apiUrl, token, cookies, userAgent, referrer, MAX_JSON_BYTES)

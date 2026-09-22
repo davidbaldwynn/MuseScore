@@ -121,6 +121,11 @@ object MuseScoreSandboxPolicy {
             .replace("{pageIndex}", pageIndex.toString())
     }
 
+    fun authorizationForPage(pageIndex: Int, authorizationByPage: Map<Int, String>): String? {
+        if (pageIndex < 0) return null
+        return authorizationByPage[pageIndex]?.takeIf { it.isNotBlank() }
+    }
+
     fun mediaUrl(responseJson: String): String? = runCatching {
         val value = JSONObject(responseJson).optJSONObject("info")?.optString("url").orEmpty()
         trustedMediaUrl(value)
