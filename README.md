@@ -14,9 +14,11 @@ Scoreleaf is an original, offline-first Android implementation targeting forScor
 - Single-page, two-page, half-page-turn, and vertical-scrolling layouts
 - Fit-page, fit-width, and fit-height settings saved per score
 - Bounded page cache with adjacent-page prefetch
-- Pen and translucent highlighter annotations stored in normalized coordinates
-- Vector eraser plus lossless per-page undo and redo
-- Export and share standard PDFs with annotations permanently flattened
+- Pressure-aware pen and translucent highlighter annotations stored in normalized coordinates
+- Vector eraser, lines, rectangles, ellipses, text, music stamps, pen presets,
+  lasso selection/move/delete, and lossless per-page undo and redo
+- Named annotation layers with rename, visibility, locking, and active-layer selection
+- Export and share standard PDFs with all visible annotation types permanently flattened
 - Bookmarks and automatic return to the last-read page
 - Searchable local library
 - Edit title, composer, genre, tags, key, tempo, duration, rating, and difficulty
@@ -40,7 +42,7 @@ Before public release, change `applicationId` to a domain you control, add a pri
 
 - Bluetooth pedal and MIDI actions
 - Crop/Reflow margins and zoom controls
-- Annotation presets, pressure, shapes, text, stamps, lasso, and named layers
+- Named/ranged bookmarks, indexes, page editing, and on-page links/buttons
 - Backup/restore archive and optional WebDAV/Drive sync
 - Resilient transfer queue, duplicate handling, batch/ZIP imports, and native
   provider adapters where officially supported

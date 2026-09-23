@@ -13,6 +13,13 @@ Every pull request must pass:
 - Accessibility checks for labels, touch targets, contrast and font scaling
 - Rotation, activity recreation and process-death restoration tests
 
+The advanced-annotation checkpoint additionally executes a single large-tablet
+whole-flow test covering PDF open, annotation mode, rectangle creation, text,
+music stamp, layer creation/selection/locking/visibility/rename, lasso selection
+and movement. Repository tests reopen typed annotations and named layers, and
+export tests render the resulting PDF to verify visible typed elements are
+flattened while hidden layers are excluded.
+
 ## Performance and resilience
 
 - Import and page through representative 10, 100 and 1,000-page PDFs

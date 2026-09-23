@@ -20,7 +20,7 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 | Reading | Disappearing controls, edge taps, page scrubber, adaptive prefetch | Partial |
 | Library | All scores, recents, composers, genres, tags, labels, list/grid, metadata sorting | Partial: metadata editing/search, category sorts, list/grid |
 | Setlists | Folders, drag ordering, placeholders, navigation across score boundaries | Partial: membership, ordering, removal, score launch |
-| Annotation | Pencil/highlighter/eraser, stamps, shapes, text, lasso, layers, undo/redo | Partial: pen, highlighter, vector eraser, undo/redo, persisted layer IDs |
+| Annotation | Pencil/highlighter/eraser, stamps, shapes, text, lasso, layers, undo/redo | Automated checkpoint complete: pressure-aware ink, presets, typed elements, selection/move/delete, named visible/locked layers, undo/redo, persistence and flattened export; physical TCL stylus/palm-rejection acceptance remains |
 | Bookmarks | Page flags, named bookmarks, ranges, indexed books, CSV index import | Page flags |
 | Layout | Crop, best fit, two-up, half-page turns, vertical scroll, Reflow | Partial: fit modes, two-up, half-page, vertical scroll |
 | Score editing | Rearrange, duplicate, rotate, insert, extract, merge | Planned |
@@ -39,8 +39,8 @@ Scoreleaf targets workflow and capability parity with current forScore while ret
 - Metadata editing, batch editing, filters, custom categories and sorting
 - Audio attachment, looping, recording, pitch/tempo controls and page-turn cues
 - PDF text/OCR search, scan capture, Reflow and accessibility reading
-- Annotation presets, pressure, highlighter, eraser, stamps, shapes, text,
-  selection/lasso, layers, redo and standard-format export
+- Annotation physical-device validation: stylus pressure accuracy, palm rejection,
+  hover behavior and long-session latency on the TCL NXTPAPER 14
 - Page crop, rotate, duplicate, insert, extract, rearrange and merge
 - Configurable links/buttons, Bluetooth pedals, keyboard commands and MIDI
 - Backup/restore, cloud-provider sync, conflict handling and recovery

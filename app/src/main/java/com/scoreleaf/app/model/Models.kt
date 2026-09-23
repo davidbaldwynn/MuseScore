@@ -96,17 +96,38 @@ data class Setlist(
 }
 
 data class InkPoint(val x: Float, val y: Float)
-enum class AnnotationTool { PEN, HIGHLIGHTER, ERASER }
+enum class AnnotationTool {
+    PEN, HIGHLIGHTER, ERASER, LINE, RECTANGLE, ELLIPSE, TEXT, STAMP, LASSO
+}
 
 data class InkStroke(
     val color: Long,
     val width: Float,
     val points: List<InkPoint>,
     val tool: AnnotationTool = AnnotationTool.PEN,
-    val layerId: String = "default"
+    val layerId: String = "default",
+    val id: String = UUID.randomUUID().toString(),
+    val text: String = "",
+    val pressures: List<Float> = emptyList()
 )
 
 data class AnnotationHistory(
     val strokes: List<InkStroke> = emptyList(),
-    val redo: List<InkStroke> = emptyList()
+    val redo: List<InkStroke> = emptyList(),
+    val undoSnapshots: List<List<InkStroke>> = emptyList(),
+    val redoSnapshots: List<List<InkStroke>> = emptyList()
 )
+
+data class AnnotationLayer(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val visible: Boolean = true,
+    val locked: Boolean = false
+) {
+    companion object {
+        val DEFAULT = AnnotationLayer(id = "default", name = "Annotations")
+    }
+}
+
+fun annotationArgb(value: Long): Int =
+    if (value in Int.MIN_VALUE.toLong()..0xffffffffL) value.toInt() else (value ushr 32).toInt()
